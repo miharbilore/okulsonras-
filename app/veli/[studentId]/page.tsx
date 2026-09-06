@@ -162,7 +162,7 @@ export default function ParentTrackingPage() {
           </TabsList>
 
           <TabsContent value="attendances" className="space-y-4 focus-visible:outline-none mt-0">
-            {data.attendances.map((att) => (
+            {data.attendances.map((att: any) => (
               <div key={att.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <div>
                   <h4 className="font-bold text-slate-800">{att.action} İşlemi</h4>
@@ -182,7 +182,7 @@ export default function ParentTrackingPage() {
               <span className="text-xl font-black text-primary">₺{data.weeklySpending.toFixed(2)}</span>
             </div>
 
-            {data.transactions.map((trx) => (
+            {data.transactions.map((trx: any) => (
               <div key={trx.id} className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm border border-slate-100">
                 <div>
                   <h4 className="font-bold text-slate-800">{trx.items}</h4>
