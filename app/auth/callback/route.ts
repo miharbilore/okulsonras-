@@ -36,17 +36,14 @@ export async function GET(request: Request) {
 
   if (!existingProfile) {
     // İlk kez giriş yapan kullanıcı => Yeni bir işletme (Tenant) oluştur
-    const tenantName = sessionData.user.user_metadata?.full_name 
-      ? `${sessionData.user.user_metadata.full_name} İşletmesi` 
-      : "Yeni İşletme";
+    const tenantName = sessionData.user.user_metadata?.tenant_name
+      || (sessionData.user.user_metadata?.full_name ? `${sessionData.user.user_metadata.full_name} İşletmesi` : "Yeni İşletme");
       
     const { data: newTenant, error: tenantError } = await supabase
       .from("tenants")
       .insert({
         name: tenantName,
-        slug: `tenant-${Date.now()}`,
-        contact_email: sessionData.user.email,
-        plan_type: "deneme"
+        slug: `tenant-${Date.now()}`
       })
       .select()
       .single();
