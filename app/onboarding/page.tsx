@@ -60,6 +60,9 @@ export default function OnboardingPage() {
 
       if (error) throw error;
       
+      // JWT token'ı yeni claim (tenant_id) ile güncellemek için oturumu yenile
+      await supabase.auth.refreshSession();
+      
       toast.success("İşletmeniz başarıyla kuruldu! Yönetim paneline yönlendiriliyorsunuz...");
       
       setTimeout(() => {

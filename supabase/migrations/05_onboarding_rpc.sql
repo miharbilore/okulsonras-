@@ -52,10 +52,18 @@ BEGIN
         RETURNING id INTO v_profile_id;
     END IF;
 
+    -- JWT claim (app_metadata.tenant_id) guncellemesi (RLS'in calismasi icin zorunlu)
+    UPDATE auth.users 
+    SET raw_app_meta_data = jsonb_set(
+        COALESCE(raw_app_meta_data, '{}'::jsonb), 
+        '{tenant_id}', 
+        to_jsonb(v_tenant_id)
+    )
+    WHERE id = p_user_id;
+
     RETURN jsonb_build_object(
         'tenant_id', v_tenant_id,
         'profile_id', v_profile_id
     );
 END;
 $$;
-
