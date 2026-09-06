@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
+import { createAdminClient } from "@/lib/supabase";
 
 /**
  * Google OAuth Callback Handler
@@ -27,8 +28,10 @@ export async function GET(request: Request) {
 
   const userId = sessionData.user.id;
 
-  // Profil var mı kontrol et, yoksa oluştur (ilk giriş)
-  const { data: existingProfile } = await supabase
+  // Profil var mı kontrol et (Bypass RLS ile yapıyoruz, emin olmak için adminClient kullanalım)
+  const adminClient = createAdminClient();
+  
+  const { data: existingProfile } = await adminClient
     .from("profiles")
     .select("role, tenant_id")
     .eq("user_id", userId)
@@ -39,7 +42,7 @@ export async function GET(request: Request) {
     const tenantName = sessionData.user.user_metadata?.tenant_name
       || (sessionData.user.user_metadata?.full_name ? `${sessionData.user.user_metadata.full_name} İşletmesi` : "Yeni İşletme");
       
-    const { data: newTenant, error: tenantError } = await supabase
+    const { data: newTenant, error: tenantError } = await adminClient
       .from("tenants")
       .insert({
         name: tenantName,
@@ -53,13 +56,15 @@ export async function GET(request: Request) {
     }
 
     // tenant_admin profili oluştur ve yeni tenant'a bağla
-    await supabase.from("profiles").insert({
+    await adminClient.from("profiles").insert({
       user_id: userId,
       role: "tenant_admin",
       tenant_id: newTenant?.id || null,
       display_name: sessionData.user.user_metadata?.full_name || sessionData.user.email,
       avatar_url: sessionData.user.user_metadata?.avatar_url || null,
     });
+    
+    // Yönlendirme (ilk kez girdiği için admin paneline yönlendir)
     return NextResponse.redirect(`${origin}/admin`);
   }
 
