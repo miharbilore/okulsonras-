@@ -12,7 +12,6 @@ import { createClient } from "@/lib/supabase";
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
-  const [tenantName, setTenantName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -21,7 +20,7 @@ export default function RegisterPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !name || !tenantName) {
+    if (!email || !password || !name) {
       toast.error("Lütfen tüm alanları doldurun.");
       return;
     }
@@ -36,7 +35,6 @@ export default function RegisterPage() {
         options: {
           data: {
             full_name: name,
-            tenant_name: tenantName,
             role: "tenant_admin"
           }
         }
@@ -141,20 +139,6 @@ export default function RegisterPage() {
                 </div>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="tenantName" className="font-semibold">İşletme / Kurum Adı</Label>
-                <div className="relative">
-                  <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    id="tenantName"
-                    placeholder="Örn: Yıldız Etüt Merkezi"
-                    value={tenantName}
-                    onChange={(e) => setTenantName(e.target.value)}
-                    className="pl-10 h-12 rounded-xl"
-                  />
-                </div>
-              </div>
-
               <div className="space-y-2">
                 <Label htmlFor="email" className="font-semibold">E-posta Adresi</Label>
                 <div className="relative">

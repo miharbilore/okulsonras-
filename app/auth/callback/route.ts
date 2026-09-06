@@ -36,27 +36,9 @@ export async function GET(request: Request) {
 
   let currentProfile = existingProfile;
 
-  // Profil yoksa veya işletmesi yoksa RPC ile güvenli (RLS bypass) oluştur
+  // Profil yoksa veya işletmesi yoksa onboarding'e yönlendir
   if (!currentProfile || (!currentProfile.tenant_id && currentProfile.role !== "super_admin")) {
-    const tenantName = sessionData.user.user_metadata?.tenant_name
-      || (sessionData.user.user_metadata?.full_name ? `${sessionData.user.user_metadata.full_name} İşletmesi` : "Yeni İşletme");
-    const tenantSlug = `tenant-${Date.now()}`;
-    const displayName = sessionData.user.user_metadata?.full_name || sessionData.user.email;
-    const avatarUrl = sessionData.user.user_metadata?.avatar_url || null;
-
-    const { data: rpcData, error: rpcError } = await supabase.rpc('create_tenant_and_profile', {
-      p_tenant_name: tenantName,
-      p_tenant_slug: tenantSlug,
-      p_user_id: userId,
-      p_display_name: displayName,
-      p_avatar_url: avatarUrl
-    });
-
-    if (rpcError) {
-      console.error("RPC Onboarding Error:", rpcError);
-    } else if (!currentProfile) {
-      currentProfile = { role: "tenant_admin", tenant_id: rpcData.tenant_id, id: rpcData.profile_id };
-    }
+    return NextResponse.redirect(`${origin}/onboarding`);
   }
 
   // Rol tabanlı yönlendirme

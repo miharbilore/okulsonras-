@@ -38,8 +38,14 @@ export default function LoginPage() {
       if (error) throw error;
       if (!data.user) throw new Error("Kullanıcı bulunamadı.");
 
-      // Kullanıcının rolünü oku ve yönlendir
-      const { role } = await getUserRole(data.user.id);
+      // Kullanıcının profil ve rolünü oku
+      const { role, tenantId } = await getUserRole(data.user.id);
+
+      // Profil yoksa veya tenant atanmamışsa onboarding sayfasına gönder
+      if (!role || (!tenantId && role !== "super_admin")) {
+        window.location.href = "/onboarding";
+        return;
+      }
 
       if (role === "super_admin") {
         toast.success("Süper Admin olarak giriş yapıldı!");
