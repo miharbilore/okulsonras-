@@ -27,11 +27,11 @@ export default function OnboardingPage() {
       setUserId(data.user.id);
       setUserMeta(data.user.user_metadata);
       
-      // Varsayýlan isim atama
+      // VarsayÄ±lan isim atama
       if (data.user.user_metadata?.tenant_name) {
         setTenantName(data.user.user_metadata.tenant_name);
       } else if (data.user.user_metadata?.full_name) {
-        setTenantName(`${data.user.user_metadata.full_name} Ýþletmesi`);
+        setTenantName(`${data.user.user_metadata.full_name} Ä°ÅŸletmesi`);
       }
     };
     checkUser();
@@ -40,7 +40,7 @@ export default function OnboardingPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenantName.trim()) {
-      toast.error("Lütfen iþletme adýnýzý girin.");
+      toast.error("LÃ¼tfen iÅŸletme adÄ±nÄ±zÄ± girin.");
       return;
     }
     
@@ -60,14 +60,14 @@ export default function OnboardingPage() {
 
       if (error) throw error;
       
-      toast.success("Ýþletmeniz baþarýyla kuruldu! Yönetim paneline yönlendiriliyorsunuz...");
+      toast.success("Ä°ÅŸletmeniz baÅŸarÄ±yla kuruldu! YÃ¶netim paneline yÃ¶nlendiriliyorsunuz...");
       
       setTimeout(() => {
         window.location.href = "/admin";
       }, 1500);
       
     } catch (error: any) {
-      toast.error("Ýþletme kurulurken bir hata oluþtu: " + (error.message || "Bilinmeyen hata"));
+      toast.error("Ä°ÅŸletme kurulurken bir hata oluÅŸtu: " + (error.message || "Bilinmeyen hata"));
       setIsLoading(false);
     }
   };
@@ -85,20 +85,20 @@ export default function OnboardingPage() {
             <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
               <Building2 className="w-8 h-8 text-primary" />
             </div>
-            <CardTitle className="text-2xl font-extrabold">Son Bir Adým!</CardTitle>
-            <CardDescription>Size özel alanýnýzý oluþturmak için iþletme (Etüt Merkezi vb.) adýnýzý belirleyin.</CardDescription>
+            <CardTitle className="text-2xl font-extrabold">Son Bir AdÄ±m!</CardTitle>
+            <CardDescription>Size Ã¶zel alanÄ±nÄ±zÄ± oluÅŸturmak iÃ§in iÅŸletme (EtÃ¼t Merkezi vb.) adÄ±nÄ±zÄ± belirleyin.</CardDescription>
           </CardHeader>
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="tenantName" className="font-semibold text-slate-700">Ýþletme Adýnýz</Label>
+                <Label htmlFor="tenantName" className="font-semibold text-slate-700">Ä°ÅŸletme AdÄ±nÄ±z</Label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
                   <Input 
                     id="tenantName"
                     value={tenantName}
                     onChange={(e) => setTenantName(e.target.value)}
-                    placeholder="Örn: Bilim Etüt Merkezi"
+                    placeholder="Ã–rn: Bilim EtÃ¼t Merkezi"
                     className="pl-10 py-6 bg-slate-50/50 border-slate-200 focus:bg-white transition-colors rounded-xl"
                     required
                   />
@@ -106,7 +106,7 @@ export default function OnboardingPage() {
               </div>
               
               <Button type="submit" disabled={isLoading} className="w-full py-6 rounded-xl text-md font-bold shadow-lg hover:shadow-xl transition-all">
-                {isLoading ? "Kuruluyor..." : "Ýþletmemi Kur ve Baþla"}
+                {isLoading ? "Kuruluyor..." : "Ä°ÅŸletmemi Kur ve BaÅŸla"}
                 {!isLoading && <ArrowRight className="w-5 h-5 ml-2" />}
               </Button>
             </form>
@@ -116,4 +116,3 @@ export default function OnboardingPage() {
     </div>
   );
 }
-"
