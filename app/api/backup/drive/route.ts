@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
 import { google } from 'googleapis';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase-server';
 
 export async function POST() {
   try {
-    const supabase = createServerClient();
+    const supabase = await createServerClient();
     const { data: authData } = await supabase.auth.getUser();
     
     if (!authData?.user) {

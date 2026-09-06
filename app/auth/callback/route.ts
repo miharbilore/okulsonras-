@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase";
+import { createServerClient } from "@/lib/supabase-server";
 
 /**
  * Google OAuth Callback Handler
@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=no_code`);
   }
 
-  const supabase = createServerClient();
+  const supabase = await createServerClient();
 
   // OAuth code'u session'a çevir
   const { data: sessionData, error: authError } = await supabase.auth.exchangeCodeForSession(code);
