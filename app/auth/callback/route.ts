@@ -35,10 +35,31 @@ export async function GET(request: Request) {
     .single();
 
   if (!existingProfile) {
-    // İlk kez giriş yapan kullanıcı => varsayılan olarak tenant_admin profili oluştur
+    // İlk kez giriş yapan kullanıcı => Yeni bir işletme (Tenant) oluştur
+    const tenantName = sessionData.user.user_metadata?.full_name 
+      ? `${sessionData.user.user_metadata.full_name} İşletmesi` 
+      : "Yeni İşletme";
+      
+    const { data: newTenant, error: tenantError } = await supabase
+      .from("tenants")
+      .insert({
+        name: tenantName,
+        slug: `tenant-${Date.now()}`,
+        contact_email: sessionData.user.email,
+        plan_type: "deneme"
+      })
+      .select()
+      .single();
+
+    if (tenantError) {
+      console.error("Tenant creation failed during OAuth:", tenantError);
+    }
+
+    // tenant_admin profili oluştur ve yeni tenant'a bağla
     await supabase.from("profiles").insert({
       user_id: userId,
       role: "tenant_admin",
+      tenant_id: newTenant?.id || null,
       display_name: sessionData.user.user_metadata?.full_name || sessionData.user.email,
       avatar_url: sessionData.user.user_metadata?.avatar_url || null,
     });

@@ -101,11 +101,14 @@ export default function AdminPage() {
             <p className="text-sm font-bold text-slate-800 truncate">{tenantName}</p>
           </div>
           <button 
-            onClick={() => {
+            onClick={async () => {
+              const { createClient } = await import("@/lib/supabase");
+              const supabase = createClient();
+              await supabase.auth.signOut();
               localStorage.removeItem("impersonate_tenant_id");
               localStorage.removeItem("impersonate_tenant_name");
               localStorage.removeItem("impersonate_mode");
-              window.location.href = "/super-admin";
+              window.location.href = "/login";
             }}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors text-sm font-semibold"
           >
