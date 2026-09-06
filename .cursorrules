@@ -1,0 +1,27 @@
+# OKULSONRASI.COM - VIBECODING ANAYASASI
+
+## 1. TEMEL TEKNOLOJİ YIĞINI (TECH STACK)
+- Framework: Next.js (App Router, React 19, TypeScript).
+- Styling: Tailwind CSS, shadcn/ui.
+- Database & Auth: Supabase (PostgreSQL).
+- Icons: Lucide React.
+- QR Engine: html5-qrcode.
+
+## 2. MULTI-TENANT ARCHITECTURE (ÇOKLU MÜŞTERİ MİMARİSİ)
+- Bu sistem SaaS olarak çalışır.
+- Veritabanındaki TÜM tablolarda `tenant_id` zorunludur.
+- Bir tenant asla başka bir tenant'ın öğrencisini, bakiyesini veya harcamasını göremez/değiştiremez.
+- Row Level Security (RLS) her zaman aktif olmalıdır.
+
+## 3. DOSYA DİZİN KURALLARI
+- Asla tek dosyada devasa spagetti kod yazma. Bileşenleri `/components/` altına modüler olarak böl.
+- Her büyük aşama tamamlandığında `docs/PROMPT_HISTORY.md` dosyasına yapılan değişiklikleri ve tarihçe özetini kaydet.
+
+## 4. KİOSK VE GİRİŞ EKRANI STANDARTLARI
+- Kiosk ekranı (Bina Giriş Ekranı) 1080p dokunmatik tablet ve monitörlere %100 uyumlu (Full Screen responsive) olmalıdır.
+- QR okutulduktan veya PIN girildikten sonra ekran 3 saniye "Giriş Başarılı" animasyonu gösterip otomatik olarak sıfırlanmalıdır (Auto-reset).
+- Sayfa asla manuel olarak F5/Reload yapılmamalı, React state yönetimi ile sıfırlanmalıdır.
+
+## 5. HATA YÖNETİMİ VE GÜVENLİK
+- Tüm API/Database işlemlerinde `try-catch` blokları ve toast bildirimleri (Sonner/Toast) kullanılmalıdır.
+- Velilere özel durum ve bakiye linkleri tahmin edilemez UUID v4 veya secure token ile sunulmalıdır.
