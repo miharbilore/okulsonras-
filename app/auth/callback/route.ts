@@ -28,17 +28,36 @@ export async function GET(request: Request) {
 
   const userId = sessionData.user.id;
 
-  // Profil var mı kontrol et (Bypass RLS ile yapıyoruz, emin olmak için adminClient kullanalım)
+  // Profil var mı kontrol et (Bypass RLS ile yapıyoruz)
   const adminClient = createAdminClient();
   
   const { data: existingProfile } = await adminClient
     .from("profiles")
-    .select("role, tenant_id")
+    .select("id, role, tenant_id")
     .eq("user_id", userId)
     .single();
 
-  if (!existingProfile) {
-    // İlk kez giriş yapan kullanıcı => Yeni bir işletme (Tenant) oluştur
+  let currentProfile = existingProfile;
+
+  // Eğer profil hiç yoksa, önce boş bir profil oluşturalım
+  if (!currentProfile) {
+    const { data: newProfile, error: profileError } = await adminClient
+      .from("profiles")
+      .insert({
+        user_id: userId,
+        role: "tenant_admin",
+        display_name: sessionData.user.user_metadata?.full_name || sessionData.user.email,
+        avatar_url: sessionData.user.user_metadata?.avatar_url || null,
+      })
+      .select()
+      .single();
+      
+    if (profileError) console.error("Profile creation error:", profileError);
+    currentProfile = newProfile;
+  }
+
+  // Profil var ama henüz bir işletmeye (tenant) bağlı değilse (ve super_admin değilse)
+  if (currentProfile && !currentProfile.tenant_id && currentProfile.role !== "super_admin") {
     const tenantName = sessionData.user.user_metadata?.tenant_name
       || (sessionData.user.user_metadata?.full_name ? `${sessionData.user.user_metadata.full_name} İşletmesi` : "Yeni İşletme");
       
@@ -53,23 +72,19 @@ export async function GET(request: Request) {
 
     if (tenantError) {
       console.error("Tenant creation failed during OAuth:", tenantError);
+    } else if (newTenant) {
+      // Oluşturulan yeni tenant'ı profile bağla
+      await adminClient
+        .from("profiles")
+        .update({ tenant_id: newTenant.id })
+        .eq("id", currentProfile.id);
+        
+      currentProfile.tenant_id = newTenant.id;
     }
-
-    // tenant_admin profili oluştur ve yeni tenant'a bağla
-    await adminClient.from("profiles").insert({
-      user_id: userId,
-      role: "tenant_admin",
-      tenant_id: newTenant?.id || null,
-      display_name: sessionData.user.user_metadata?.full_name || sessionData.user.email,
-      avatar_url: sessionData.user.user_metadata?.avatar_url || null,
-    });
-    
-    // Yönlendirme (ilk kez girdiği için admin paneline yönlendir)
-    return NextResponse.redirect(`${origin}/admin`);
   }
 
   // Rol tabanlı yönlendirme
-  if (existingProfile.role === "super_admin") {
+  if (currentProfile?.role === "super_admin") {
     return NextResponse.redirect(`${origin}/super-admin`);
   }
 
