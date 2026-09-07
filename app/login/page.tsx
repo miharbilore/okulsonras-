@@ -31,6 +31,18 @@ function mapAuthErrorMessage(message?: string) {
   return message;
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return undefined;
+}
+
 function mapCallbackError(errorParam: string | null) {
   if (!errorParam) return null;
 
@@ -100,8 +112,8 @@ export default function LoginPage() {
 
       toast.success("İşletme yöneticisi olarak giriş yapıldı!");
       router.replace(nextPath);
-    } catch (error: any) {
-      toast.error(`Giriş başarısız: ${mapAuthErrorMessage(error?.message)}`);
+    } catch (error: unknown) {
+      toast.error(`Giriş başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -122,8 +134,8 @@ export default function LoginPage() {
       });
 
       if (error) throw error;
-    } catch (error: any) {
-      toast.error(`Google ile giriş başarısız: ${mapAuthErrorMessage(error?.message)}`);
+    } catch (error: unknown) {
+      toast.error(`Google ile giriş başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
       setIsLoading(false);
     }
   };

@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { QrCode, Mail, Lock, ArrowRight, User } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase";
 
 function mapAuthErrorMessage(message?: string) {
@@ -26,12 +27,25 @@ function mapAuthErrorMessage(message?: string) {
   return message;
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (typeof error === "string") {
+    return error;
+  }
+
+  return undefined;
+}
+
 export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -60,10 +74,10 @@ export default function RegisterPage() {
 
       toast.success("Kayıt başarılı! Lütfen e-postanızı onaylayın veya giriş yapın.");
       setTimeout(() => {
-        window.location.href = "/login";
+        router.replace("/login");
       }, 2000);
-    } catch (error: any) {
-      toast.error(`Kayıt başarısız: ${mapAuthErrorMessage(error?.message)}`);
+    } catch (error: unknown) {
+      toast.error(`Kayıt başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
     } finally {
       setIsLoading(false);
     }
@@ -84,8 +98,8 @@ export default function RegisterPage() {
       });
 
       if (error) throw error;
-    } catch (error: any) {
-      toast.error(`Google ile kayıt başarısız: ${mapAuthErrorMessage(error?.message)}`);
+    } catch (error: unknown) {
+      toast.error(`Google ile kayıt başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
       setIsLoading(false);
     }
   };
