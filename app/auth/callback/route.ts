@@ -1,50 +1,58 @@
 import { NextResponse } from "next/server";
-import { createServerClient } from "@/lib/supabase-server";
+import { createClient } from "@/lib/supabase/server";
 
-/**
- * Google OAuth Callback Handler
- * Supabase, OAuth başarılı olduğunda kullanıcıyı bu endpoint'e yönlendirir.
- * Kod (code) alınır, session oluşturulur ve kullanıcı rolüne göre yönlendirilir.
- */
+function resolveOrigin(request: Request) {
+  const url = new URL(request.url);
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") ?? "https";
+
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  return url.origin;
+}
+
+function getSafeNextPath(next: string | null) {
+  if (!next) return "/admin";
+  if (!next.startsWith("/") || next.startsWith("//")) return "/admin";
+  return next;
+}
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/admin";
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const nextPath = getSafeNextPath(requestUrl.searchParams.get("next"));
+  const origin = resolveOrigin(request);
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=no_code`);
+    return NextResponse.redirect(new URL("/login?error=no_code", origin));
   }
 
-  const supabase = await createServerClient();
-
-  // OAuth code'u session'a çevir
+  const supabase = await createClient();
   const { data: sessionData, error: authError } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (authError || !sessionData?.user) {
-    console.error("OAuth callback error:", authError);
-    return NextResponse.redirect(`${origin}/login?error=auth_failed`);
+  if (authError || !sessionData?.user || !sessionData.session) {
+    return NextResponse.redirect(new URL("/login?error=auth_failed", origin));
   }
 
-  const userId = sessionData.user.id;
-
-  // Profil var mı kontrol et
-  const { data: existingProfile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("id, role, tenant_id")
-    .eq("user_id", userId)
-    .single();
+    .select("role, tenant_id")
+    .eq("user_id", sessionData.user.id)
+    .maybeSingle();
 
-  let currentProfile = existingProfile;
-
-  // Profil yoksa veya işletmesi yoksa onboarding'e yönlendir
-  if (!currentProfile || (!currentProfile.tenant_id && currentProfile.role !== "super_admin")) {
-    return NextResponse.redirect(`${origin}/onboarding`);
+  if (profileError) {
+    return NextResponse.redirect(new URL("/login?error=profile_lookup_failed", origin));
   }
 
-  // Rol tabanlı yönlendirme
-  if (currentProfile?.role === "super_admin") {
-    return NextResponse.redirect(`${origin}/super-admin`);
+  if (!profile || (!profile.tenant_id && profile.role !== "super_admin")) {
+    return NextResponse.redirect(new URL("/onboarding", origin));
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  if (profile.role === "super_admin") {
+    return NextResponse.redirect(new URL("/super-admin", origin));
+  }
+
+  return NextResponse.redirect(new URL(nextPath, origin));
 }

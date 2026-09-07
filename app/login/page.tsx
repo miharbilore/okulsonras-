@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,26 +11,72 @@ import { QrCode, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { createClient, getUserRole } from "@/lib/supabase";
 
+function mapAuthErrorMessage(message?: string) {
+  if (!message) return "Bilinmeyen hata";
+
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes("email not confirmed")) {
+    return "E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı onaylayın.";
+  }
+
+  if (lowerMessage.includes("invalid login credentials")) {
+    return "E-posta veya şifre hatalı.";
+  }
+
+  if (lowerMessage.includes("profile_lookup_failed")) {
+    return "Profiliniz okunamadı. Lütfen tekrar deneyin.";
+  }
+
+  return message;
+}
+
+function mapCallbackError(errorParam: string | null) {
+  if (!errorParam) return null;
+
+  const messages: Record<string, string> = {
+    no_code: "OAuth dönüşünde kod alınamadı.",
+    auth_failed: "Google oturumu başlatılamadı. Tekrar deneyin.",
+    profile_lookup_failed: "Profil kontrolü sırasında hata oluştu.",
+  };
+
+  return messages[errorParam] ?? "Giriş sırasında bir hata oluştu.";
+}
+
+function getSafeNextPath(nextPath: string | null) {
+  if (!nextPath) return "/admin";
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) return "/admin";
+  return nextPath;
+}
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const supabase = createClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const supabase = useMemo(() => createClient(), []);
+  const nextPath = getSafeNextPath(searchParams.get("next"));
 
-  // =============================================
-  // E-POSTA / ŞİFRE İLE GİRİŞ
-  // =============================================
+  useEffect(() => {
+    const callbackError = mapCallbackError(searchParams.get("error"));
+    if (callbackError) {
+      toast.error(callbackError);
+    }
+  }, [searchParams]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!email || !password) {
       toast.error("Lütfen e-posta ve şifre alanlarını doldurun.");
       return;
     }
+
     setIsLoading(true);
 
     try {
-      // --- GERÇEK SUPABASE AUTH ---
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -38,60 +85,57 @@ export default function LoginPage() {
       if (error) throw error;
       if (!data.user) throw new Error("Kullanıcı bulunamadı.");
 
-      // Kullanıcının profil ve rolünü oku
       const { role, tenantId } = await getUserRole(data.user.id);
 
-      // Profil yoksa veya tenant atanmamışsa onboarding sayfasına gönder
       if (!role || (!tenantId && role !== "super_admin")) {
-        window.location.href = "/onboarding";
+        router.replace("/onboarding");
         return;
       }
 
       if (role === "super_admin") {
         toast.success("Süper Admin olarak giriş yapıldı!");
-        window.location.href = "/super-admin";
-      } else {
-        toast.success("İşletme yöneticisi olarak giriş yapıldı!");
-        window.location.href = "/admin";
+        router.replace("/super-admin");
+        return;
       }
+
+      toast.success("İşletme yöneticisi olarak giriş yapıldı!");
+      router.replace(nextPath);
     } catch (error: any) {
-      toast.error("Giriş başarısız: " + (error.message || "Bilinmeyen hata"));
+      toast.error(`Giriş başarısız: ${mapAuthErrorMessage(error?.message)}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // =============================================
-  // GOOGLE OAUTH İLE GİRİŞ
-  // =============================================
   const handleGoogleLogin = async () => {
     setIsLoading(true);
+
     try {
+      const redirectUrl = new URL("/auth/callback", window.location.origin);
+      redirectUrl.searchParams.set("next", nextPath);
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl.toString(),
         },
       });
 
       if (error) throw error;
-      // Kullanıcı Google'a yönlendirilecek, callback sonrası geri dönecek
     } catch (error: any) {
-      toast.error("Google ile giriş başarısız: " + (error.message || "Bilinmeyen hata"));
+      toast.error(`Google ile giriş başarısız: ${mapAuthErrorMessage(error?.message)}`);
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-primary/30 flex items-center justify-center p-6 relative overflow-hidden">
-      {/* Dekoratif Arka Plan */}
       <div className="absolute top-0 left-0 w-full h-full opacity-10">
         <div className="absolute top-[10%] left-[15%] w-96 h-96 bg-primary rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[10%] right-[10%] w-80 h-80 bg-blue-500 rounded-full blur-[100px]"></div>
       </div>
 
       <div className="w-full max-w-md relative z-10">
-        {/* Logo ve Başlık */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-3 mb-6 group">
             <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform">
@@ -108,7 +152,6 @@ export default function LoginPage() {
             <CardDescription>Devam etmek için giriş yapın.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-8 pb-8">
-            {/* Google OAuth */}
             <Button
               variant="outline"
               className="w-full h-14 text-base font-bold rounded-xl border-2 hover:bg-slate-50 transition-all"
@@ -124,7 +167,6 @@ export default function LoginPage() {
               Google ile Giriş Yap
             </Button>
 
-            {/* Ayırıcı */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-slate-200"></span>
@@ -134,7 +176,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* E-posta / Şifre Formu */}
             <form onSubmit={handleEmailLogin} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email" className="font-semibold">E-posta Adresi</Label>
@@ -174,7 +215,6 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* 2FA Badge */}
             <div className="flex items-center justify-center gap-2 pt-2 text-sm text-slate-400">
               <ShieldCheck className="w-4 h-4 text-green-500" />
               <span>256-bit SSL ile güvende · 2FA Destekli</span>

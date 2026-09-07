@@ -1,14 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { QrCode, Mail, Lock, ArrowRight, Building2, User } from "lucide-react";
+import { QrCode, Mail, Lock, ArrowRight, User } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase";
+
+function mapAuthErrorMessage(message?: string) {
+  if (!message) return "Bilinmeyen hata";
+
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes("user already registered")) {
+    return "Bu e-posta ile zaten bir hesap var. Giriş yapmayı deneyin.";
+  }
+
+  if (lowerMessage.includes("password should be at least")) {
+    return "Şifreniz Supabase güvenlik kurallarını karşılamıyor.";
+  }
+
+  return message;
+}
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -16,39 +32,38 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!email || !password || !name) {
       toast.error("Lütfen tüm alanları doldurun.");
       return;
     }
+
     setIsLoading(true);
 
     try {
-
-      // 1. Supabase Auth Kaydı
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             full_name: name,
-            role: "tenant_admin"
-          }
-        }
+            role: "tenant_admin",
+          },
+        },
       });
 
       if (error) throw error;
-      
+
       toast.success("Kayıt başarılı! Lütfen e-postanızı onaylayın veya giriş yapın.");
       setTimeout(() => {
         window.location.href = "/login";
       }, 2000);
-
     } catch (error: any) {
-      toast.error("Kayıt başarısız: " + (error.message || "Bilinmeyen hata"));
+      toast.error(`Kayıt başarısız: ${mapAuthErrorMessage(error?.message)}`);
     } finally {
       setIsLoading(false);
     }
@@ -58,23 +73,25 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
+      const redirectUrl = new URL("/auth/callback", window.location.origin);
+      redirectUrl.searchParams.set("next", "/onboarding");
+
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: redirectUrl.toString(),
         },
       });
 
       if (error) throw error;
     } catch (error: any) {
-      toast.error("Google ile kayıt başarısız: " + (error.message || "Bilinmeyen hata"));
+      toast.error(`Google ile kayıt başarısız: ${mapAuthErrorMessage(error?.message)}`);
       setIsLoading(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-primary/30 flex items-center justify-center p-6 relative overflow-hidden pt-20">
-      {/* Dekoratif Arka Plan */}
       <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
         <div className="absolute top-[10%] right-[15%] w-96 h-96 bg-primary rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[10%] left-[10%] w-80 h-80 bg-blue-500 rounded-full blur-[100px]"></div>
@@ -97,7 +114,6 @@ export default function RegisterPage() {
             <CardDescription>Hızlıca işletmenizi sisteme ekleyin.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6 px-8 pb-8">
-            {/* Google OAuth */}
             <Button
               variant="outline"
               className="w-full h-14 text-base font-bold rounded-xl border-2 hover:bg-slate-50 transition-all"
@@ -113,7 +129,6 @@ export default function RegisterPage() {
               Google ile Kayıt Ol
             </Button>
 
-            {/* Ayırıcı */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-slate-200"></span>
@@ -123,7 +138,6 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            {/* Form */}
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="name" className="font-semibold">Adınız Soyadınız</Label>
@@ -138,7 +152,7 @@ export default function RegisterPage() {
                   />
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email" className="font-semibold">E-posta Adresi</Label>
                 <div className="relative">
