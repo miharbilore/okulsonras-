@@ -124,13 +124,32 @@ export function StudentManagement() {
     setNewStudent({ fullName: "", parentName: "", parentPhone: "", weeklyLimit: 100, qrCodeId: "", pinCode: "" });
   };
 
-  const handleSendMessage = (text: string) => {
+  const handleSendMessage = async (text: string) => {
+    if (!selectedStudentForMessage) return;
+    const phone = selectedStudentForMessage.parent_phone || selectedStudentForMessage.parentPhone;
+    if (!phone) {
+      toast.error("Bu öğrencinin veli telefon numarası kayıtlı değil.");
+      return;
+    }
     toast.loading("Mesaj gönderiliyor...", { id: "msg" });
-    setTimeout(() => {
-      toast.success(`${selectedStudentForMessage?.parent_name || selectedStudentForMessage?.parentName} velisine mesaj başarıyla iletildi!`, { id: "msg" });
+    try {
+      const res = await fetch('/api/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, message: text }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success(`${selectedStudentForMessage.parent_name || selectedStudentForMessage.parentName || 'Veli'}ye mesaj başarıyla iletildi!`, { id: "msg" });
+      } else {
+        toast.error(data.error || "Mesaj gönderilemedi.", { id: "msg" });
+      }
+    } catch {
+      toast.error("Mesaj gönderilirken bir hata oluştu.", { id: "msg" });
+    } finally {
       setSelectedStudentForMessage(null);
       setCustomMessage("");
-    }, 1500);
+    }
   };
 
   const filteredStudents = students.filter(s => 

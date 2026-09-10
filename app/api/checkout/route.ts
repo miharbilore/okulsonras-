@@ -19,6 +19,14 @@ export async function POST(request: Request) {
 
     const IYZICO_API_KEY = process.env.IYZICO_API_KEY || "";
     const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY || "";
+
+    // Mock/eksik API key kontrolü
+    if (!IYZICO_API_KEY || !IYZICO_SECRET_KEY || IYZICO_API_KEY === 'mock_api_key' || IYZICO_SECRET_KEY === 'mock_secret') {
+      return NextResponse.json({
+        success: false,
+        error: "Ödeme sistemi henüz yapılandırılmamış. Lütfen yönetici ile iletişime geçin.",
+      }, { status: 503 });
+    }
     const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com";
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 

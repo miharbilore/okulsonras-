@@ -31,7 +31,20 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const isProtected = ['/admin', '/super-admin', '/pos', '/kiosk', '/onboarding'].some(path => request.nextUrl.pathname.startsWith(path));
+  const isAuthPage = request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register';
+
+  if (!user && isProtected) {
+    const redirectUrl = new URL('/login', request.url);
+    redirectUrl.searchParams.set('next', request.nextUrl.pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  if (user && isAuthPage) {
+    return NextResponse.redirect(new URL('/admin', request.url));
+  }
 
   return response;
 }

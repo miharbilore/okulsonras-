@@ -49,12 +49,34 @@ export default function POSPage() {
 
         if (productsRes.data) setProducts(productsRes.data);
         if (studentsRes.data) {
-           setStudents(studentsRes.data.map((s: any) => ({
-             id: s.id,
-             name: s.full_name,
-             weeklyLimit: s.weekly_limit || 100,
-             weeklySpending: 0 // TODO: gerçek harcamaları transactions tablosundan hesapla
-           })));
+          // Bu haftanın başlangıcını hesapla (Pazartesi)
+          const now = new Date();
+          const dayOfWeek = now.getDay();
+          const monday = new Date(now);
+          monday.setDate(now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+          monday.setHours(0, 0, 0, 0);
+          const weekStart = monday.toISOString();
+
+          // Bu haftaki tüm credit işlemleri çek
+          const { data: weeklyTransactions } = await supabase
+            .from('transactions')
+            .select('student_id, total_amount')
+            .eq('tenant_id', currentTenantId)
+            .gte('created_at', weekStart);
+
+          // Öğrenci bazında harcama topla
+          const spendingMap = new Map<string, number>();
+          (weeklyTransactions || []).forEach((t: any) => {
+            const current = spendingMap.get(t.student_id) || 0;
+            spendingMap.set(t.student_id, current + (t.total_amount || 0));
+          });
+
+          setStudents(studentsRes.data.map((s: any) => ({
+            id: s.id,
+            name: s.full_name,
+            weeklyLimit: s.weekly_limit || 100,
+            weeklySpending: spendingMap.get(s.id) || 0
+          })));
         }
       } catch (err: any) {
         toast.error("Veriler yüklenemedi: " + (err.message || "Bilinmeyen hata"));

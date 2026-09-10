@@ -23,7 +23,7 @@ export default function ParentTrackingPage() {
       try {
         const { data: student, error: studentError } = await supabase
           .from('students')
-          .select('*, tenants(name)')
+          .select('*, tenants(name, camera_stream_url, camera_stream_type)')
           .eq('id', studentId)
           .single();
 
@@ -53,6 +53,8 @@ export default function ParentTrackingPage() {
           fullName: student.full_name,
           status: isCurrentlyIn ? "Şu an mekanda" : "Mekanda değil",
           tenantName: student.tenants?.name || "Kayıtlı İşletme",
+          cameraStreamUrl: student.tenants?.camera_stream_url || null,
+          cameraStreamType: student.tenants?.camera_stream_type || 'none',
           checkInTime: attendances?.[0] ? new Date(attendances[0].created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' }) : "-",
           weeklySpending: weeklySpending,
           weeklyLimit: student.weekly_limit || 0,
@@ -120,8 +122,8 @@ export default function ParentTrackingPage() {
         <div className="mb-8">
           <LiveCameraModal 
             isCheckedIn={data.status === "Şu an mekanda"}
-            streamType="hls" // Mock data for now, real app should get this from tenant settings
-            streamUrl="https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8" // Mock URL for testing
+            streamType={data.cameraStreamType || "none"}
+            streamUrl={data.cameraStreamUrl || ""}
           />
         </div>
 

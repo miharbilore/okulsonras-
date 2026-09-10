@@ -47,6 +47,13 @@ export default function KioskPage() {
       setStudentName(student.full_name);
       setState('SUCCESS');
       
+      // Veliye WhatsApp bildirimi gönder (fire-and-forget)
+      fetch('/api/notify/checkin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: student.id, checkInType: type }),
+      }).catch(() => {}); // Bildirim hatası kiosk'u etkilememeli
+      
       // 3 Saniye Sonra Auto-Reset
       setTimeout(() => {
         resetKiosk();

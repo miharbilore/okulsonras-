@@ -74,50 +74,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* GELİŞTİRİCİ / TEST PORTALI (CANLIYA ÇIKARKEN SİLİNECEK) */}
-      <section className="py-12 bg-slate-900 text-white relative z-10 border-y border-slate-800">
-        <div className="container mx-auto px-6 max-w-5xl">
-          <div className="text-center mb-8">
-            <Badge className="bg-red-500 hover:bg-red-600 mb-4">TEST MODU AKTİF</Badge>
-            <h2 className="text-2xl font-bold">Hızlı Erişim Portalı</h2>
-            <p className="text-slate-400 mt-2">Test yaparken sayfalar arasında kolayca geçiş yapın.</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/super-admin">
-              <Card className="bg-slate-800 border-slate-700 hover:bg-slate-700 transition-colors h-full cursor-pointer">
-                <CardContent className="p-6 text-center flex flex-col items-center gap-3">
-                  <HardDrive className="w-8 h-8 text-blue-400" />
-                  <span className="font-bold text-white">Süper Admin</span>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/admin">
-              <Card className="bg-slate-800 border-slate-700 hover:bg-slate-700 transition-colors h-full cursor-pointer">
-                <CardContent className="p-6 text-center flex flex-col items-center gap-3">
-                  <Users className="w-8 h-8 text-green-400" />
-                  <span className="font-bold text-white">Tenant Admin</span>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/pos">
-              <Card className="bg-slate-800 border-slate-700 hover:bg-slate-700 transition-colors h-full cursor-pointer">
-                <CardContent className="p-6 text-center flex flex-col items-center gap-3">
-                  <Coffee className="w-8 h-8 text-amber-400" />
-                  <span className="font-bold text-white">Kafe POS</span>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/kiosk">
-              <Card className="bg-slate-800 border-slate-700 hover:bg-slate-700 transition-colors h-full cursor-pointer">
-                <CardContent className="p-6 text-center flex flex-col items-center gap-3">
-                  <QrCode className="w-8 h-8 text-purple-400" />
-                  <span className="font-bold text-white">Kiosk Cihazı</span>
-                </CardContent>
-              </Card>
-            </Link>
-          </div>
-        </div>
-      </section>
+
 
       {/* FEATURES GRID */}
       <section id="features" className="py-24 bg-white border-y">
