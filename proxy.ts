@@ -1,54 +1,80 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-function getSupabaseEnv() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
-    throw new Error("Supabase environment variables are missing.");
-  }
-
-  return { url, anonKey };
-}
-
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
-  const { url, anonKey } = getSupabaseEnv();
-
-  const supabase = createServerClient(url, anonKey, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll();
-      },
-      setAll(cookiesToSet) {
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-        response = NextResponse.next({ request });
-        cookiesToSet.forEach(({ name, value, options }) => {
-          response.cookies.set(name, value, options);
-        });
-      },
-    },
+  let supabaseResponse = NextResponse.next({
+    request,
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
 
-  const isProtected = ['/admin', '/super-admin', '/pos', '/kiosk', '/onboarding'].some(path => request.nextUrl.pathname.startsWith(path));
-  const isAuthPage = request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register';
+  // Get auth status
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (!user && isProtected) {
-    const redirectUrl = new URL('/login', request.url);
-    redirectUrl.searchParams.set('next', request.nextUrl.pathname);
-    return NextResponse.redirect(redirectUrl);
+  const url = request.nextUrl.clone();
+  const path = url.pathname;
+
+  // 1. Protected Routes (Admin Panels)
+  if (path.startsWith("/admin") || path.startsWith("/super-admin") || path.startsWith("/pos") || path.startsWith("/kiosk") || path.startsWith("/onboarding")) {
+    if (!user) {
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
+
+    // Super Admin Authorization Check
+    if (path.startsWith("/super-admin")) {
+      const isSuperAdmin = user.app_metadata?.role === "super_admin";
+      
+      if (!isSuperAdmin) {
+        url.pathname = "/";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
-  if (user && isAuthPage) {
-    return NextResponse.redirect(new URL('/admin', request.url));
+  // 2. Protected API Routes
+  if (path.startsWith("/api")) {
+    // Exclude public API endpoints like webhooks or kiosk triggers
+    const publicApiRoutes = ["/api/notify/checkin", "/api/checkout/callback"];
+    const isPublicApi = publicApiRoutes.some((route) => path.startsWith(route));
+
+    if (!isPublicApi && !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
-  return response;
+  // Redirect logged-in users away from auth pages
+  if (user && (path === "/login" || path === "/register")) {
+    url.pathname = "/admin";
+    return NextResponse.redirect(url);
+  }
+
+  return supabaseResponse;
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };

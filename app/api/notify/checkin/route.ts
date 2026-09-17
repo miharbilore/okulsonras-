@@ -1,45 +1,69 @@
 import { NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { sendCheckInMessage } from '@/lib/whatsapp';
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 import crypto from 'crypto';
 
 export async function POST(request: Request) {
   try {
     const apiKey = request.headers.get("x-api-key");
-    if (!apiKey) {
-      return NextResponse.json({ success: false, error: 'API Key eksik' }, { status: 401 });
-    }
-
     const { studentId, checkInType } = await request.json();
 
     if (!studentId) {
       return NextResponse.json({ success: false, error: 'Student ID is required' }, { status: 400 });
     }
 
-    // Bypass RLS using service role to check the API Key and student
-    const supabaseAdmin = createClient(
+    const supabaseAdmin = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+    
+    let authorizedTenantId = null;
 
-    // Hash the incoming key to match DB
-    const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
+    if (apiKey) {
+      // API Key Doğrulaması (Fiziksel Kiosk cihazları için)
+      const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
+      const { data: keyData, error: keyError } = await supabaseAdmin
+        .from('tenant_api_keys')
+        .select('tenant_id')
+        .eq('key_hash', keyHash)
+        .eq('is_active', true)
+        .single();
 
-    // Validate the API key
-    const { data: keyData, error: keyError } = await supabaseAdmin
-      .from('tenant_api_keys')
-      .select('tenant_id')
-      .eq('key_hash', keyHash)
-      .eq('is_active', true)
-      .single();
-
-    if (keyError || !keyData) {
-      return NextResponse.json({ success: false, error: 'Geçersiz veya iptal edilmiş API Anahtarı' }, { status: 403 });
+      if (keyError || !keyData) {
+        return NextResponse.json({ success: false, error: 'Geçersiz veya iptal edilmiş API Anahtarı' }, { status: 403 });
+      }
+      authorizedTenantId = keyData.tenant_id;
+      // Update last_used_at async
+      supabaseAdmin.from('tenant_api_keys').update({ last_used_at: new Date().toISOString() }).eq('key_hash', keyHash).then();
+    } else {
+      // JWT Doğrulaması (Web Kiosk simülatörü için)
+      const cookieStore = await cookies();
+      const supabaseAuth = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() { return cookieStore.getAll(); },
+            setAll() { },
+          },
+        }
+      );
+      const { data: authData } = await supabaseAuth.auth.getUser();
+      if (!authData?.user) {
+         return NextResponse.json({ success: false, error: 'Yetkisiz işlem (API Key veya Oturum eksik)' }, { status: 401 });
+      }
+      // Kullanıcının tenant_id'sini belirle (impersonate cookie veya JWT)
+      const impersonateTenantId = cookieStore.get("impersonate_tenant_id")?.value;
+      if (impersonateTenantId) {
+        authorizedTenantId = impersonateTenantId;
+      } else {
+        const { data: profile } = await supabaseAdmin.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+        authorizedTenantId = profile?.tenant_id;
+      }
     }
-
-    // Optional: Update last_used_at async
-    supabaseAdmin.from('tenant_api_keys').update({ last_used_at: new Date().toISOString() }).eq('key_hash', keyHash).then();
 
     const { data: student, error } = await supabaseAdmin
       .from('students')
@@ -47,38 +71,41 @@ export async function POST(request: Request) {
       .eq('id', studentId)
       .single();
 
-    if (error || !student || student.tenant_id !== keyData.tenant_id) {
-      console.error("Student not found or unauthorized for check-in notification");
-      return NextResponse.json({ success: false, error: 'Öğrenci bulunamadı veya yetkisiz' }, { status: 403 });
+    if (error || !student) {
+      return NextResponse.json({ success: false, error: 'Öğrenci bulunamadı' }, { status: 404 });
+    }
+
+    if (authorizedTenantId && student.tenant_id !== authorizedTenantId) {
+      return NextResponse.json({ success: false, error: 'Öğrenci bu işletmeye ait değil' }, { status: 403 });
     }
 
     const phone = student.parent_phone;
     if (!phone) {
-      return NextResponse.json({ success: true });
+      // Veli telefonu yoksa cache güncelleyip dön
+      revalidateTag(`student-${studentId}`);
+      return NextResponse.json({ success: true, message: 'Öğrenci giriş yaptı ama veli telefonu yok' });
     }
 
     const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
     const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
+    const isWhatsAppEnabled = GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token';
 
-    if (GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token') {
-      // Mesajı kuyruğa atıp (await ile ama db'ye yazmak hızlıdır) çıkıyoruz, kiosk beklemez
-      sendCheckInMessage(student.tenant_id, phone, student.full_name, checkInType || 'qr', studentId).catch((err) => {
-        console.error("Failed to enqueue check-in message:", err);
-      });
+    const action = checkInType === 'qr' ? 'QR Kod' : 'PIN Kodu';
+    const message = `Sayın velimiz, öğrenciniz ${student.full_name} şu an ${action} ile giriş yapmıştır.\n\nCanlı takip: ${process.env.NEXT_PUBLIC_APP_URL}/veli/${studentId}`;
+
+    if (isWhatsAppEnabled) {
+      // Kuyruğa Ekleme (Asenkron)
+      const { enqueueWhatsAppMessage } = await import('@/lib/whatsapp');
+      await enqueueWhatsAppMessage(student.tenant_id, phone, message);
     }
 
-    // Anında Veli Sayfası önbelleğini (cache) temizle
-    try {
-      revalidateTag(`student-${studentId}`);
-    } catch (cacheErr) {
-      console.error("Cache purge failed:", cacheErr);
-    }
+    // Cache'i Anında Temizle
+    revalidateTag(`student-${studentId}`);
 
-    // Hemen yanıt dönüyoruz (Asenkron kuyruk)
-    return NextResponse.json({ success: true, queued: true });
+    return NextResponse.json({ success: true, queued: isWhatsAppEnabled });
 
-  } catch (error) {
-    console.error("Error processing check-in notification:", error);
-    return NextResponse.json({ success: true }); // Always return success for kiosk
+  } catch (error: any) {
+    console.error("Check-in error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
