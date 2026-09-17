@@ -1,26 +1,54 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { sendCheckInMessage } from '@/lib/whatsapp';
+import { createClient } from '@supabase/supabase-js';
+import crypto from 'crypto';
 
 export async function POST(request: Request) {
   try {
+    const apiKey = request.headers.get("x-api-key");
+    if (!apiKey) {
+      return NextResponse.json({ success: false, error: 'API Key eksik' }, { status: 401 });
+    }
+
     const { studentId, checkInType } = await request.json();
 
     if (!studentId) {
       return NextResponse.json({ success: false, error: 'Student ID is required' }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    // Bypass RLS using service role to check the API Key and student
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    const { data: student, error } = await supabase
+    // Hash the incoming key to match DB
+    const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");
+
+    // Validate the API key
+    const { data: keyData, error: keyError } = await supabaseAdmin
+      .from('tenant_api_keys')
+      .select('tenant_id')
+      .eq('key_hash', keyHash)
+      .eq('is_active', true)
+      .single();
+
+    if (keyError || !keyData) {
+      return NextResponse.json({ success: false, error: 'Geçersiz veya iptal edilmiş API Anahtarı' }, { status: 403 });
+    }
+
+    // Optional: Update last_used_at async
+    supabaseAdmin.from('tenant_api_keys').update({ last_used_at: new Date().toISOString() }).eq('key_hash', keyHash).then();
+
+    const { data: student, error } = await supabaseAdmin
       .from('students')
       .select('full_name, parent_phone, tenant_id')
       .eq('id', studentId)
       .single();
 
-    if (error || !student) {
-      console.error("Student not found for check-in notification:", error);
-      return NextResponse.json({ success: true }); // Return success to avoid blocking kiosk
+    if (error || !student || student.tenant_id !== keyData.tenant_id) {
+      console.error("Student not found or unauthorized for check-in notification");
+      return NextResponse.json({ success: false, error: 'Öğrenci bulunamadı veya yetkisiz' }, { status: 403 });
     }
 
     const phone = student.parent_phone;

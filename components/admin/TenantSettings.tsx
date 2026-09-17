@@ -9,8 +9,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Building2, Save, Smartphone, CheckCircle2, ShieldCheck, Crown, KeyRound, Copy, Camera, Info, Loader2, CreditCard, Lock, RefreshCw, AlertCircle, PlayCircle } from "lucide-react";
+import { Building2, Save, Smartphone, CheckCircle2, ShieldCheck, Crown, KeyRound, Copy, Camera, Info, Loader2, CreditCard, Lock, RefreshCw, AlertCircle, PlayCircle, Trash2, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import { getApiKeys, generateApiKey, revokeApiKey } from "@/app/actions/api-keys";
 
 export function TenantSettings() {
   const supabase = createClient();
@@ -24,8 +25,8 @@ export function TenantSettings() {
   const [phone, setPhone] = useState("0555 123 4567");
   const [cameraStreamUrl, setCameraStreamUrl] = useState("");
   const [cameraStreamType, setCameraStreamType] = useState("none");
-  const [kioskToken, setKioskToken] = useState("osk_kiosk_8f92a3b1c4e5d6");
-  const [posToken, setPosToken] = useState("osk_pos_x7y8z9w0a1b2c3");
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [newKeyModal, setNewKeyModal] = useState<{ isOpen: boolean; rawKey: string; name: string } | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
@@ -52,11 +53,38 @@ export function TenantSettings() {
       setTenant(data);
       setName(data.name || "");
       setWhatsappKey(data.whatsapp_api_key || "");
+      
+      const keys = await getApiKeys();
+      setApiKeys(keys || []);
     } catch (err: any) {
       console.error(err);
       toast.error("İşletme bilgileri yüklenemedi.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateKey = async (type: "kiosk" | "pos") => {
+    try {
+      const name = type === "kiosk" ? "Yeni Kiosk Cihazı" : "Yeni POS Cihazı";
+      const { rawKey } = await generateApiKey(name, type);
+      const keys = await getApiKeys();
+      setApiKeys(keys || []);
+      setNewKeyModal({ isOpen: true, rawKey, name });
+    } catch (error: any) {
+      toast.error("Anahtar üretilemedi: " + error.message);
+    }
+  };
+
+  const handleRevokeKey = async (id: string) => {
+    if (!confirm("Bu anahtarı iptal etmek istediğinize emin misiniz? Cihaz bağlantısı anında kesilecektir.")) return;
+    try {
+      await revokeApiKey(id);
+      toast.success("Anahtar iptal edildi.");
+      const keys = await getApiKeys();
+      setApiKeys(keys || []);
+    } catch (error: any) {
+      toast.error("Anahtar iptal edilemedi: " + error.message);
     }
   };
 
@@ -284,55 +312,74 @@ export function TenantSettings() {
         <TabsContent value="security" className="space-y-6">
           <Card className="shadow-sm border-slate-200 border-l-4 border-l-blue-500">
             <CardHeader>
-              <CardTitle>Donanım Cihazları (Token)</CardTitle>
-              <CardDescription>Kiosk (Turnike) ve POS (Yazar Kasa) tabletlerinizi bu işletmeye bağlamak için bu şifreleri kullanın.</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Cihaz API Anahtarları</CardTitle>
+                  <CardDescription>Kiosk ve POS cihazlarınız için güvenli API anahtarları oluşturun.</CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handleGenerateKey("kiosk")} className="border-blue-200 text-blue-700 bg-blue-50">
+                    <Plus className="w-4 h-4 mr-1" /> Kiosk Anahtarı
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => handleGenerateKey("pos")} className="border-green-200 text-green-700 bg-green-50">
+                    <Plus className="w-4 h-4 mr-1" /> POS Anahtarı
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-6">
-              
-              {/* Kiosk Token */}
-              <div className="bg-slate-50 border rounded-xl p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-slate-500"/>
-                    Kiosk (Yoklama) Cihazı Token
-                  </h4>
-                  <div className="px-2 py-0.5 bg-white border text-xs font-semibold rounded-md text-slate-500">Tablet 1</div>
+            <CardContent>
+              {apiKeys.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 border border-dashed rounded-xl">
+                  Henüz oluşturulmuş bir API anahtarı bulunmuyor.
                 </div>
-                <div className="flex gap-2">
-                  <Input readOnly value={kioskToken} className="font-mono bg-white h-11" />
-                  <Button variant="outline" className="h-11 px-3 shadow-sm bg-white" onClick={() => copyToClipboard(kioskToken, 'Kiosk Token')}>
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" className="h-11 px-3 shadow-sm bg-white text-blue-600 hover:text-blue-700">
-                    <RefreshCw className="w-4 h-4" />
-                  </Button>
+              ) : (
+                <div className="space-y-3">
+                  {apiKeys.map((key) => (
+                    <div key={key.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-slate-50">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-semibold text-slate-800">{key.name}</h4>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${key.device_type === 'kiosk' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+                            {key.device_type.toUpperCase()}
+                          </span>
+                        </div>
+                        <p className="text-sm font-mono text-slate-500">{key.key_prefix}</p>
+                        <p className="text-xs text-slate-400 mt-1">Oluşturulma: {new Date(key.created_at).toLocaleDateString("tr-TR")}</p>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleRevokeKey(key.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 mt-3 sm:mt-0">
+                        <Trash2 className="w-4 h-4 mr-2" /> İptal Et
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                <p className="text-xs text-slate-500 mt-2">Tabletinizde Kiosk uygulamasını açtığınızda ekrana bu token'ı girin.</p>
-              </div>
-
-              {/* POS Token */}
-              <div className="bg-slate-50 border rounded-xl p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    <KeyRound className="w-4 h-4 text-slate-500"/>
-                    POS (Kasa) Cihazı Token
-                  </h4>
-                  <div className="px-2 py-0.5 bg-white border text-xs font-semibold rounded-md text-slate-500">Tablet 2</div>
-                </div>
-                <div className="flex gap-2">
-                  <Input readOnly value={posToken} className="font-mono bg-white h-11" />
-                  <Button variant="outline" className="h-11 px-3 shadow-sm bg-white" onClick={() => copyToClipboard(posToken, 'POS Token')}>
-                    <Copy className="w-4 h-4" />
-                  </Button>
-                  <Button variant="outline" className="h-11 px-3 shadow-sm bg-white text-blue-600 hover:text-blue-700">
-                    <RefreshCw className="w-4 h-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-slate-500 mt-2">Kasadaki POS uygulamasını sisteme entegre etmek için bu token'ı girin.</p>
-              </div>
-
+              )}
             </CardContent>
           </Card>
+
+          {/* New Key Modal */}
+          <Dialog open={!!newKeyModal?.isOpen} onOpenChange={(open) => !open && setNewKeyModal(null)}>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-amber-600">
+                  <AlertCircle className="w-5 h-5" />
+                  Yeni API Anahtarı Oluşturuldu
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <p className="text-sm text-slate-600 font-medium">
+                  Lütfen bu anahtarı <b>hemen şimdi</b> kopyalayıp cihazınıza girin. Güvenlik nedeniyle bu anahtarı bir daha göremeyeceksiniz!
+                </p>
+                <div className="flex gap-2">
+                  <Input readOnly value={newKeyModal?.rawKey || ""} className="font-mono bg-slate-50 h-11" />
+                  <Button className="h-11 px-4 shadow-sm" onClick={() => {
+                    if (newKeyModal?.rawKey) copyToClipboard(newKeyModal.rawKey, "API Anahtarı");
+                  }}>
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* ABONELİK (FATURALANDIRMA) */}
