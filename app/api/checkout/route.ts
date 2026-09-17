@@ -1,110 +1,123 @@
 import { NextResponse } from "next/server";
+import Iyzipay from "iyzipay";
+import { createServerClient } from "@/lib/supabase/server";
 
-/**
- * POST /api/checkout
- * Ödeme başlatma endpoint'i.
- * İyzico Sandbox/Production API'sine checkout form isteği atar.
- */
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { plan, email, name } = body;
+    const { plan, email, name, tenantId } = body;
 
     if (!plan || !email) {
       return NextResponse.json({ error: "Plan ve e-posta zorunludur." }, { status: 400 });
     }
 
-    const price = plan === "professional" ? "1950.00" : "1250.00";
+    // Yetkilendirme Kontrolü (Opsiyonel ama güvenli)
+    const supabase = await createServerClient();
+    const { data: authData } = await supabase.auth.getUser();
+
+    // Tenant ID'yi body'den alıyoruz (veya session'dan doğrulayabiliriz)
+    let activeTenantId = tenantId;
+    if (!activeTenantId && authData?.user) {
+       const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+       if (profile?.tenant_id) activeTenantId = profile.tenant_id;
+    }
+
+    if (!activeTenantId) {
+      return NextResponse.json({ error: "İşletme kimliği bulunamadı." }, { status: 400 });
+    }
+
+    const price = plan === "professional" ? "1950.0" : "1250.0";
     const planName = plan === "professional" ? "Profesyonel Paket" : "Standart Paket";
 
-    const IYZICO_API_KEY = process.env.IYZICO_API_KEY || "";
-    const IYZICO_SECRET_KEY = process.env.IYZICO_SECRET_KEY || "";
+    const iyzipay = new Iyzipay({
+      apiKey: process.env.IYZICO_API_KEY || "sandbox-...",
+      secretKey: process.env.IYZICO_SECRET_KEY || "sandbox-...",
+      uri: process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com"
+    });
 
-    // Mock/eksik API key kontrolü
-    if (!IYZICO_API_KEY || !IYZICO_SECRET_KEY || IYZICO_API_KEY === 'mock_api_key' || IYZICO_SECRET_KEY === 'mock_secret') {
-      return NextResponse.json({
-        success: false,
-        error: "Ödeme sistemi henüz yapılandırılmamış. Lütfen yönetici ile iletişime geçin.",
-      }, { status: 503 });
-    }
-    const IYZICO_BASE_URL = process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com";
     const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-    // İyzico Checkout Form isteği
-    const conversationId = `conv_${Date.now()}`;
+    
+    // conversationId içine tenant_id ve plan bilgisini gömüyoruz ki callback'te yakalayabilelim
+    const conversationId = `tenant_${activeTenantId}_plan_${plan}_t_${Date.now()}`;
     const basketId = `bsk_${Date.now()}`;
 
-    const iyzicoPayload = {
-      locale: "tr",
-      conversationId,
-      price,
+    const requestData = {
+      locale: Iyzipay.LOCALE.TR,
+      conversationId: conversationId,
+      price: price,
       paidPrice: price,
-      currency: "TRY",
-      basketId,
-      paymentGroup: "SUBSCRIPTION",
+      currency: Iyzipay.CURRENCY.TRY,
+      basketId: basketId,
+      paymentGroup: Iyzipay.PAYMENT_GROUP.SUBSCRIPTION,
       callbackUrl: `${APP_URL}/api/checkout/callback`,
       enabledInstallments: [1],
       buyer: {
-        id: `buyer_${Date.now()}`,
-        name: name || "Müşteri",
-        surname: ".",
+        id: `buyer_${activeTenantId}`,
+        name: name || "İşletme",
+        surname: "Sahibi",
         gsmNumber: "+905000000000",
-        email,
-        identityNumber: "00000000000",
+        email: email,
+        identityNumber: "11111111111", // Gerçekte kullanıcıdan alınmalı
+        lastLoginDate: "2023-10-10 10:10:10",
+        registrationDate: "2023-10-10 10:10:10",
         registrationAddress: "Türkiye",
-        ip: "127.0.0.1",
+        ip: "85.34.78.112",
         city: "Istanbul",
         country: "Turkey",
+        zipCode: "34732"
       },
-      billingAddress: {
-        contactName: name || "Müşteri",
+      shippingAddress: {
+        contactName: name || "İşletme",
         city: "Istanbul",
         country: "Turkey",
         address: "Türkiye",
+        zipCode: "34732"
+      },
+      billingAddress: {
+        contactName: name || "İşletme",
+        city: "Istanbul",
+        country: "Turkey",
+        address: "Türkiye",
+        zipCode: "34732"
       },
       basketItems: [
         {
           id: plan,
           name: planName,
           category1: "SaaS Abonelik",
-          itemType: "VIRTUAL",
-          price,
+          itemType: Iyzipay.BASKET_ITEM_TYPE.VIRTUAL,
+          price: price,
         },
       ],
     };
 
-    // İyzico API çağrısı
-    const response = await fetch(`${IYZICO_BASE_URL}/payment/iyzipos/checkoutform/initialize/auth/ecom`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `IYZWS ${IYZICO_API_KEY}`,
-        // Not: Gerçek İyzico entegrasyonunda HMAC imza hesaplaması gerekir.
-        // Bu kısım iyzipay-node SDK ile yapılmalıdır.
-        "x-iyzi-rnd": conversationId,
-      },
-      body: JSON.stringify(iyzicoPayload),
-    });
+    // Promise wrapper for iyzipay callback
+    const initializeCheckout = (): Promise<any> => {
+      return new Promise((resolve, reject) => {
+        iyzipay.checkoutFormInitialize.create(requestData, function (err: any, result: any) {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+    };
 
-    if (!response.ok) {
-      // İyzico bağlantısı yoksa Fallback: LemonSqueezy veya direkt yönlendirme
-      console.warn("[Checkout] İyzico bağlantısı kurulamadı, fallback checkout.");
+    const result = await initializeCheckout();
 
+    if (result.status === "success") {
       return NextResponse.json({
         success: true,
-        checkoutUrl: `${APP_URL}/api/checkout/callback?status=success&plan=${plan}&email=${encodeURIComponent(email)}&conversationId=${conversationId}`,
-        message: "Ödeme sayfasına yönlendiriliyorsunuz (Demo Modu).",
+        checkoutUrl: result.paymentPageUrl,
+        token: result.token,
+        message: "İyzico ödeme formu oluşturuldu.",
       });
+    } else {
+      console.error("[Iyzico Init Error]", result);
+      return NextResponse.json({ 
+        success: false, 
+        error: result.errorMessage || "Ödeme başlatılamadı." 
+      }, { status: 400 });
     }
 
-    const data = await response.json();
-
-    return NextResponse.json({
-      success: true,
-      checkoutUrl: data.paymentPageUrl || data.checkoutFormContent,
-      token: data.token,
-      message: "İyzico ödeme formu oluşturuldu.",
-    });
   } catch (error: any) {
     console.error("[Checkout] Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

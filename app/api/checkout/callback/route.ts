@@ -1,100 +1,96 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase";
-
-/**
- * GET /api/checkout/callback
- * Ödeme başarılı olduktan sonra İyzico/LemonSqueezy bu endpoint'e yönlendirir.
- * Otomatik olarak yeni tenant ve profil kaydı oluşturur.
- */
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
-  const status = searchParams.get("status");
-  const plan = searchParams.get("plan");
-  const email = searchParams.get("email");
-  const conversationId = searchParams.get("conversationId");
-
-  if (status !== "success") {
-    return NextResponse.redirect(`${origin}/?payment=failed`);
-  }
-
-  try {
-    const supabase = createAdminClient();
-
-    // 1. Yeni Tenant oluştur
-    const slug = `tenant-${Date.now().toString(36)}`;
-    const { data: tenant, error: tenantError } = await supabase
-      .from("tenants")
-      .insert({
-        name: `${email?.split("@")[0] || "Yeni"} İşletmesi`,
-        slug,
-      })
-      .select()
-      .single();
-
-    if (tenantError) throw tenantError;
-
-    // 2. Kullanıcıyı bul veya oluştur (Supabase Auth)
-    // Not: Ödeme callback'inde kullanıcı henüz auth olmamış olabilir.
-    // Bu durumda invite linki oluşturulur.
-    let userId: string | null = null;
-
-    if (email) {
-      // Mevcut kullanıcıyı ara
-      const { data: existingUsers } = await supabase.auth.admin.listUsers();
-      const existingUser = existingUsers?.users?.find((u: any) => u.email === email);
-
-      if (existingUser) {
-        userId = existingUser.id;
-      } else {
-        // Yeni kullanıcı davet et
-        const { data: inviteData } = await supabase.auth.admin.inviteUserByEmail(email);
-        userId = inviteData?.user?.id || null;
-      }
-    }
-
-    // 3. Profil oluştur
-    if (userId) {
-      await supabase.from("profiles").upsert({
-        user_id: userId,
-        role: "tenant_admin",
-        tenant_id: tenant.id,
-        display_name: email?.split("@")[0],
-      });
-    }
-
-    console.log(`[Checkout Callback] Yeni tenant oluşturuldu: ${tenant.name} (${tenant.id}), Plan: ${plan}`);
-
-    // Başarı sayfasına yönlendir
-    return NextResponse.redirect(
-      `${origin}/login?signup=success&tenant=${tenant.slug}`
-    );
-  } catch (error: any) {
-    console.error("[Checkout Callback] Error:", error);
-    return NextResponse.redirect(`${origin}/?payment=error&message=${encodeURIComponent(error.message)}`);
-  }
-}
+import Iyzipay from "iyzipay";
+import { createClient } from "@supabase/supabase-js";
 
 /**
  * POST /api/checkout/callback
- * İyzico Webhook (sunucudan sunucuya) bildirimi için.
+ * İyzico ödeme formundan yönlendirilen (POST) callback adresi.
  */
 export async function POST(request: Request) {
+  // İyzico formu x-www-form-urlencoded olarak token gönderir
+  let token = "";
   try {
-    const body = await request.json();
+    const formData = await request.formData();
+    token = formData.get("token") as string;
+  } catch (e) {
+    //
+  }
 
-    console.log("[Checkout Webhook] Payload:", JSON.stringify(body));
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
-    // İyzico webhook doğrulaması
-    // Gerçek ortamda: HMAC imza kontrolü yapılmalıdır
-    if (body.status === "SUCCESS" || body.paymentStatus === "SUCCESS") {
-      // Ödeme onaylandı - gerekli işlemleri yap
-      console.log("[Checkout Webhook] Ödeme onaylandı:", body.conversationId);
-      return NextResponse.json({ received: true });
+  if (!token) {
+    return NextResponse.redirect(`${APP_URL}/admin?payment=failed&message=Token+bulunamadi`, 302);
+  }
+
+  const iyzipay = new Iyzipay({
+    apiKey: process.env.IYZICO_API_KEY || "sandbox-...",
+    secretKey: process.env.IYZICO_SECRET_KEY || "sandbox-...",
+    uri: process.env.IYZICO_BASE_URL || "https://sandbox-api.iyzipay.com"
+  });
+
+  const retrieveCheckout = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      iyzipay.checkoutForm.retrieve({
+        locale: Iyzipay.LOCALE.TR,
+        token: token
+      }, function (err: any, result: any) {
+        if (err) reject(err);
+        else resolve(result);
+      });
+    });
+  };
+
+  try {
+    const result = await retrieveCheckout();
+
+    if (result.paymentStatus === "SUCCESS") {
+      // conversationId içerisine gizlediğimiz referansı çöz (tenant_id ve plan)
+      const conversationId = result.conversationId || "";
+      const tenantMatch = conversationId.match(/tenant_(.*?)_plan_(.*?)_t_/);
+      
+      if (tenantMatch) {
+        const tenantId = tenantMatch[1];
+        const plan = tenantMatch[2];
+
+        // Abonelik bitiş tarihi: 1 ay sonrası
+        const nextMonth = new Date();
+        nextMonth.setMonth(nextMonth.getMonth() + 1);
+
+        // Supabase Service Role ile RLS'i bypass ederek aboneliği güncelle
+        const supabaseAdmin = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+
+        const { error } = await supabaseAdmin.from("tenants").update({
+          plan_type: plan,
+          subscription_ends_at: nextMonth.toISOString(),
+          is_active: true
+        }).eq("id", tenantId);
+
+        if (error) {
+           console.error("[Checkout] Tenant abonelik güncellemesi başarısız:", error);
+        } else {
+           console.log(`[Checkout] Tenant (${tenantId}) aboneliği ${plan} paketi ile yenilendi.`);
+        }
+
+        // Başarılı ödeme
+        return NextResponse.redirect(`${APP_URL}/admin?payment=success`, 302);
+      }
     }
 
-    return NextResponse.json({ received: true, status: "ignored" });
+    // Ödeme başarısız ise
+    console.error("[Iyzico Callback Failed]", result);
+    return NextResponse.redirect(`${APP_URL}/admin?payment=failed&message=${encodeURIComponent(result.errorMessage || "Ödeme başarısız")}`, 302);
+
   } catch (error: any) {
-    console.error("[Checkout Webhook] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[Checkout Retrieve Error]", error);
+    return NextResponse.redirect(`${APP_URL}/admin?payment=error`, 302);
   }
+}
+
+// Opsiyonel: GET metodu direkt tarayıcıdan girilirse hata vermesin diye
+export async function GET() {
+  const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  return NextResponse.redirect(`${APP_URL}/admin`, 302);
 }
