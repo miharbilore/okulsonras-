@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/process-whatsapp-queue",
+      "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/backup/drive",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}
