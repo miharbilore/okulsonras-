@@ -5,7 +5,7 @@ import { StudentManagement } from "@/components/admin/StudentManagement";
 import { ProductManagement } from "@/components/admin/ProductManagement";
 import { ReportsDashboard } from "@/components/admin/ReportsDashboard";
 import { TenantSettings } from "@/components/admin/TenantSettings";
-import { LayoutDashboard, Users, Coffee, FileBarChart, Settings, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Users, Coffee, FileBarChart, Settings, LogOut, Menu, X, Lock, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("students");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [tenantName, setTenantName] = useState("Yükleniyor...");
+  const [isTrialExpired, setIsTrialExpired] = useState(false);
 
   useEffect(() => {
     const fetchTenantName = async () => {
@@ -33,22 +34,63 @@ export default function AdminPage() {
       const supabase = createClient();
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
-        const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+        console.log("AdminPage Profile Fetch:", { profile, profileError, userId: authData.user.id });
+        if (profileError) {
+          console.error("Profile fetch error:", profileError);
+          alert("Profil yüklenirken hata: " + profileError.message);
+        }
         if (profile?.tenant_id) {
-          const { data: tenant } = await supabase.from('tenants').select('name').eq('id', profile.tenant_id).single();
-          if (tenant) setTenantName(tenant.name);
+          const { data: tenant } = await supabase.from('tenants').select('name, plan_type, trial_ends_at').eq('id', profile.tenant_id).single();
+          if (tenant) {
+            setTenantName(tenant.name);
+            if (tenant.plan_type === 'deneme' && tenant.trial_ends_at) {
+              const trialEnd = new Date(tenant.trial_ends_at);
+              if (new Date() > trialEnd) {
+                setIsTrialExpired(true);
+              }
+            }
+          }
           else setTenantName("İşletme Bulunamadı");
         } else {
-          setTenantName("Yetkisiz Kullanıcı");
+          // Kullanıcının henüz işletmesi yok → onboarding'e yönlendir
+          window.location.href = "/onboarding";
+          return;
         }
       } else {
-         setTenantName("Oturum Yok");
+         window.location.href = "/login";
+         return;
       }
     };
     fetchTenantName();
   }, []);
 
   const renderContent = () => {
+    if (tenantName === "Yükleniyor...") {
+      return (
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+        </div>
+      );
+    }
+
+    if (isTrialExpired) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+          <div className="w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
+            <Lock className="w-10 h-10" />
+          </div>
+          <h2 className="text-3xl font-extrabold text-slate-900 mb-4">Deneme Süreniz Sona Erdi</h2>
+          <p className="text-lg text-slate-600 mb-8 max-w-md">
+            14 günlük ücretsiz deneme süreniz dolmuştur. Sistemi kullanmaya devam etmek için lütfen bir paket seçin.
+          </p>
+          <Link href="/#pricing" className="inline-flex items-center justify-center h-12 px-8 rounded-xl bg-primary text-white font-bold shadow-lg hover:shadow-xl transition-all hover:-translate-y-1">
+            Paketleri İncele
+          </Link>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case "students": return <StudentManagement />;
       case "products": return <ProductManagement />;

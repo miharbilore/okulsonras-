@@ -76,6 +76,10 @@ function LoginContent() {
     if (callbackError) {
       toast.error(callbackError);
     }
+    
+    if (searchParams.get("message") === "check-email") {
+      toast.info("E-posta adresinize doğrulama bağlantısı gönderildi. Lütfen kontrol edin.", { duration: 8000 });
+    }
   }, [searchParams]);
 
   const handleEmailLogin = async (e: React.FormEvent) => {

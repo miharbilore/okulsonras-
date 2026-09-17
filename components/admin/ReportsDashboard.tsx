@@ -1,11 +1,76 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MessageSquareShare, TrendingUp, Users, Info } from "lucide-react";
+import { MessageSquareShare, TrendingUp, Users, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase";
 
 export function ReportsDashboard() {
+  const [todayCheckins, setTodayCheckins] = useState<number>(0);
+  const [todayRevenue, setTodayRevenue] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const [recentCheckins, setRecentCheckins] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadStats() {
+      const supabase = createClient();
+      let activeTenantId = localStorage.getItem("impersonate_tenant_id");
+
+      if (!activeTenantId) {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user) {
+          const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
+          if (profile?.tenant_id) {
+            activeTenantId = profile.tenant_id;
+          }
+        }
+      }
+
+      if (activeTenantId) {
+        // Today start date
+        const startOfDay = new Date();
+        startOfDay.setHours(0, 0, 0, 0);
+        const isoStart = startOfDay.toISOString();
+
+        // Fetch attendances count
+        const { count } = await supabase
+          .from('attendances')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', activeTenantId)
+          .gte('created_at', isoStart);
+
+        // Fetch recent attendances with student info
+        const { data: recentAtt } = await supabase
+          .from('attendances')
+          .select('*, student:students(full_name)')
+          .eq('tenant_id', activeTenantId)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        // Fetch transactions
+        const { data: txData } = await supabase
+          .from('transactions')
+          .select('total_amount')
+          .eq('tenant_id', activeTenantId)
+          .gte('created_at', isoStart);
+
+        setTodayCheckins(count || 0);
+        if (recentAtt) setRecentCheckins(recentAtt);
+        
+        if (txData) {
+          const total = txData.reduce((acc, curr) => acc + Number(curr.total_amount), 0);
+          setTodayRevenue(total);
+        }
+      }
+      setLoading(false);
+    }
+    
+    loadStats();
+  }, []);
+
   const handleSendWhatsAppReport = () => {
     toast.info("WhatsApp Raporu Gönderiliyor...", {
       description: "Tüm velilere haftalık harcama ve yoklama dökümleri iletiliyor.",
@@ -49,7 +114,9 @@ export function ReportsDashboard() {
             <Users className="h-6 w-6 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-extrabold text-primary">148</div>
+            {loading ? <Loader2 className="animate-spin w-8 h-8 text-primary" /> : (
+              <div className="text-5xl font-extrabold text-primary">{todayCheckins}</div>
+            )}
             <p className="text-sm text-muted-foreground mt-2">
               Öğrenci Kiosk üzerinden giriş yaptı
             </p>
@@ -58,13 +125,15 @@ export function ReportsDashboard() {
 
         <Card className="bg-green-500/5 border-green-500/20">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-lg font-bold">Bugünkü Ciro (POS)</CardTitle>
+            <CardTitle className="text-lg font-bold">Bugünkü Kantin Ciro</CardTitle>
             <TrendingUp className="h-6 w-6 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-5xl font-extrabold text-green-600">₺4,250.00</div>
+            {loading ? <Loader2 className="animate-spin w-8 h-8 text-green-600" /> : (
+              <div className="text-5xl font-extrabold text-green-600">{todayRevenue.toLocaleString('tr-TR')} ₺</div>
+            )}
             <p className="text-sm text-muted-foreground mt-2">
-              Kafeterya satışlarından elde edilen tutar
+              Toplam POS harcaması
             </p>
           </CardContent>
         </Card>
@@ -75,24 +144,32 @@ export function ReportsDashboard() {
           <CardTitle>Son Giriş Yapan Öğrenciler</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {["Ahmet Yılmaz (QR)", "Zeynep Kaya (PIN)", "Can Demir (QR)", "Elif Yılmaz (QR)"].map((name, i) => (
-              <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-muted-foreground">
-                    {name.charAt(0)}
+          {loading ? (
+             <div className="py-8 flex justify-center"><Loader2 className="animate-spin text-slate-400 w-8 h-8" /></div>
+          ) : recentCheckins.length === 0 ? (
+             <div className="text-center py-6 text-slate-500">Henüz giriş yapan öğrenci bulunmuyor.</div>
+          ) : (
+            <div className="space-y-4">
+              {recentCheckins.map((att, i) => {
+                const name = att.student?.full_name || "İsimsiz Öğrenci";
+                return (
+                <div key={i} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center font-bold text-muted-foreground">
+                      {name.charAt(0)}
+                    </div>
+                    <div>
+                      <p className="font-semibold">{name}</p>
+                      <p className="text-sm text-muted-foreground">Giriş Tipi: {att.check_in_type === "qr" ? "QR Kod" : "PIN"}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold">{name.split(" ")[0]} {name.split(" ")[1]}</p>
-                    <p className="text-sm text-muted-foreground">Giriş Tipi: {name.includes("QR") ? "QR Kod" : "PIN"}</p>
+                  <div className="text-sm text-muted-foreground font-mono">
+                    {new Date(att.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
                   </div>
                 </div>
-                <div className="text-sm text-muted-foreground font-mono">
-                  {new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                </div>
-              </div>
-            ))}
-          </div>
+              )})}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -72,10 +72,11 @@ export default function RegisterPage() {
 
       if (error) throw error;
 
-      toast.success("Kayıt başarılı! Lütfen e-postanızı onaylayın veya giriş yapın.");
+      toast.success("Hesabınız oluşturuldu! Lütfen e-posta kutunuzu kontrol edin ve gelen doğrulama linkine tıklayın.", { duration: 8000 });
+      // Redirect is still fine but give them a clear instruction. If they click the email link, it opens a new tab.
       setTimeout(() => {
-        router.replace("/login");
-      }, 2000);
+        router.replace("/login?message=check-email");
+      }, 3000);
     } catch (error: unknown) {
       toast.error(`Kayıt başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
     } finally {

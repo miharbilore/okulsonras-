@@ -16,13 +16,23 @@ export default function LandingPage() {
   const handleCheckout = async (plan: 'standard' | 'professional') => {
     toast.loading("Ödeme sayfası hazırlanıyor...", { id: "checkout" });
     try {
+      const { createClient } = await import("@/lib/supabase");
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user?.email) {
+        toast.dismiss("checkout");
+        toast.error("Ödeme yapmak için sisteme giriş yapmış olmalısınız.");
+        return;
+      }
+
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           plan,
-          email: '', // Kullanıcıdan alınacak veya giriş sonrası
-          name: '',
+          email: user.email,
+          name: user.user_metadata?.full_name || 'Kullanıcı',
         }),
       });
       const data = await res.json();
