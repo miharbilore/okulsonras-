@@ -137,6 +137,42 @@ export function TenantSettings() {
     toast.success(`${label} panoya kopyalandı.`);
   };
 
+  const handleCheckout = async () => {
+    setSaving(true);
+    toast.loading("Ödeme sayfasına yönlendiriliyorsunuz...", { id: "checkout" });
+    try {
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      
+      const res = await fetch("/api/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan: "professional",
+          email: "admin@okulsonrasi.com",
+          name: name || "İşletme Adı",
+          tenantId: tenantInfo?.tenantId
+        })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Ödeme başlatılamadı.");
+      }
+      
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      } else {
+        toast.error("Ödeme URL'i bulunamadı.", { id: "checkout" });
+      }
+    } catch (err: any) {
+      toast.error("Hata: " + err.message, { id: "checkout" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex justify-center items-center h-64"><Loader2 className="w-8 h-8 animate-spin text-slate-400" /></div>;
   }
@@ -446,7 +482,8 @@ export function TenantSettings() {
               </div>
             </CardContent>
             <CardFooter className="bg-white border-t border-amber-200 justify-end p-4 rounded-b-xl">
-              <Button className="bg-amber-500 hover:bg-amber-600 text-white shadow-md">
+              <Button onClick={handleCheckout} disabled={saving} className="bg-amber-500 hover:bg-amber-600 text-white shadow-md">
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
                 Planı Yükselt / Ödeme Yap
               </Button>
             </CardFooter>
