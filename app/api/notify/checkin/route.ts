@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { sendCheckInMessage } from '@/lib/whatsapp';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
@@ -64,6 +65,13 @@ export async function POST(request: Request) {
       sendCheckInMessage(student.tenant_id, phone, student.full_name, checkInType || 'qr', studentId).catch((err) => {
         console.error("Failed to enqueue check-in message:", err);
       });
+    }
+
+    // Anında Veli Sayfası önbelleğini (cache) temizle
+    try {
+      revalidateTag(`student-${studentId}`);
+    } catch (cacheErr) {
+      console.error("Cache purge failed:", cacheErr);
     }
 
     // Hemen yanıt dönüyoruz (Asenkron kuyruk)
