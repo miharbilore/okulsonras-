@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Iyzipay from "iyzipay";
-import { createServerClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     // Yetkilendirme Kontrolü (Opsiyonel ama güvenli)
-    const supabase = await createServerClient();
+    const supabase = await createClient();
     const { data: authData } = await supabase.auth.getUser();
 
     // Tenant ID'yi body'den alıyoruz (veya session'dan doğrulayabiliriz)
