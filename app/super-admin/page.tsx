@@ -181,11 +181,17 @@ export default function SuperAdminPage() {
     toast.loading(`"${tenant.name}" paneline giriş yapılıyor...`, { id: "imp" });
 
     try {
-      // Tenant bilgisini localStorage'a geçici olarak yaz
-      // Gerçek üretimde: custom claims veya server-side session kullanılır
-      localStorage.setItem("impersonate_tenant_id", tenant.id);
-      localStorage.setItem("impersonate_tenant_name", tenant.name);
-      localStorage.setItem("impersonate_mode", "true");
+      const res = await fetch("/api/super-admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: tenant.id, tenantName: tenant.name }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Geçiş yapılamadı.");
+      }
 
       toast.success(`"${tenant.name}" yönetim paneline yönlendiriliyorsunuz.`, { id: "imp" });
 
@@ -231,9 +237,7 @@ export default function SuperAdminPage() {
               className="text-slate-400 hover:text-red-400"
               onClick={async () => {
                 await supabase.auth.signOut();
-                localStorage.removeItem("impersonate_tenant_id");
-                localStorage.removeItem("impersonate_tenant_name");
-                localStorage.removeItem("impersonate_mode");
+                await fetch("/api/super-admin/impersonate", { method: "DELETE" }).catch(() => {}); // Fallback clear (we will add DELETE method to the route)
                 window.location.href = "/login";
               }}
             >

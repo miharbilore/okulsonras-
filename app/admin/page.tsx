@@ -23,46 +23,22 @@ export default function AdminPage() {
   const [isTrialExpired, setIsTrialExpired] = useState(false);
 
   useEffect(() => {
-    const fetchTenantName = async () => {
-      const storedName = localStorage.getItem("impersonate_tenant_name");
-      if (storedName) {
-        setTenantName(storedName);
-        return;
-      }
-      
-      const { createClient } = await import("@/lib/supabase");
-      const supabase = createClient();
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user) {
-        const { data: profile, error: profileError } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
-        console.log("AdminPage Profile Fetch:", { profile, profileError, userId: authData.user.id });
-        if (profileError) {
-          console.error("Profile fetch error:", profileError);
-          alert("Profil yüklenirken hata: " + profileError.message);
-        }
-        if (profile?.tenant_id) {
-          const { data: tenant } = await supabase.from('tenants').select('name, plan_type, trial_ends_at').eq('id', profile.tenant_id).single();
-          if (tenant) {
-            setTenantName(tenant.name);
-            if (tenant.plan_type === 'deneme' && tenant.trial_ends_at) {
-              const trialEnd = new Date(tenant.trial_ends_at);
-              if (new Date() > trialEnd) {
-                setIsTrialExpired(true);
-              }
-            }
-          }
-          else setTenantName("İşletme Bulunamadı");
+    const initTenant = async () => {
+      try {
+        const { getCurrentTenant } = await import("@/app/actions/tenant");
+        const tenantInfo = await getCurrentTenant();
+        
+        if (tenantInfo) {
+          setTenantName(tenantInfo.tenantName);
         } else {
-          // Kullanıcının henüz işletmesi yok → onboarding'e yönlendir
+          // No tenant found, redirect to onboarding
           window.location.href = "/onboarding";
-          return;
         }
-      } else {
-         window.location.href = "/login";
-         return;
+      } catch (error) {
+        console.error("Tenant info fetch error:", error);
       }
     };
-    fetchTenantName();
+    initTenant();
   }, []);
 
   const renderContent = () => {
@@ -145,11 +121,10 @@ export default function AdminPage() {
           <button 
             onClick={async () => {
               const { createClient } = await import("@/lib/supabase");
+              const { clearImpersonation } = await import("@/app/actions/tenant");
               const supabase = createClient();
               await supabase.auth.signOut();
-              localStorage.removeItem("impersonate_tenant_id");
-              localStorage.removeItem("impersonate_tenant_name");
-              localStorage.removeItem("impersonate_mode");
+              await clearImpersonation();
               window.location.href = "/login";
             }}
             className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-xl transition-colors text-sm font-semibold"
