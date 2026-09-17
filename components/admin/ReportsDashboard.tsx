@@ -17,7 +17,10 @@ export function ReportsDashboard() {
   useEffect(() => {
     async function loadStats() {
       const supabase = createClient();
-      let activeTenantId = localStorage.getItem("impersonate_tenant_id");
+      
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      let activeTenantId = tenantInfo?.tenantId || null;
 
       if (!activeTenantId) {
         const { data: authData } = await supabase.auth.getUser();

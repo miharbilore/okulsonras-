@@ -35,12 +35,14 @@ export function ProductManagement() {
 
   const fetchProducts = async () => {
     try {
-      const tenantId = localStorage.getItem("impersonate_tenant_id");
-      if (!tenantId) {
-        toast.error("İşletme kimliği (Tenant ID) bulunamadı! Lütfen Süper Admin panelinden bir işletmeye 'Giriş Yap' diyerek gelin.");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) {
+        toast.error("İşletme kimliği bulunamadı! Lütfen sisteme tekrar giriş yapın.");
         setLoading(false);
         return;
       }
+      const tenantId = tenantInfo.tenantId;
 
       const { data, error } = await supabase
         .from("products")
@@ -65,11 +67,13 @@ export function ProductManagement() {
     }
 
     try {
-      const tenantId = localStorage.getItem("impersonate_tenant_id");
-      if (!tenantId) {
-        toast.error("İşletme kimliği bulunamadı! Lütfen Süper Admin üzerinden giriş yapın.");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) {
+        toast.error("İşletme kimliği bulunamadı!");
         return;
       }
+      const tenantId = tenantInfo.tenantId;
 
       const { data, error } = await supabase.from("products").insert({
         tenant_id: tenantId,

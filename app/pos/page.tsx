@@ -19,7 +19,9 @@ export default function POSPage() {
 
   useEffect(() => {
     async function loadData() {
-      let currentTenantId = localStorage.getItem("impersonate_tenant_id");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      let currentTenantId = tenantInfo?.tenantId || null;
       
       if (!currentTenantId) {
         const { data: authData } = await supabase.auth.getUser();

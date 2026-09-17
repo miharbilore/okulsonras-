@@ -35,12 +35,14 @@ export function TenantSettings() {
 
   const fetchTenantDetails = async () => {
     try {
-      const tenantId = localStorage.getItem("impersonate_tenant_id");
-      if (!tenantId) {
-        toast.error("İşletme kimliği bulunamadı! Lütfen Süper Admin'den giriş yapın.");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) {
+        toast.error("İşletme kimliği bulunamadı! Lütfen sisteme tekrar giriş yapın.");
         setLoading(false);
         return;
       }
+      const tenantId = tenantInfo.tenantId;
 
       const { data, error } = await supabase
         .from('tenants')
@@ -91,13 +93,14 @@ export function TenantSettings() {
   const handleSaveGeneral = async () => {
     setSaving(true);
     try {
-      const tenantId = localStorage.getItem("impersonate_tenant_id");
-      if (!tenantId) throw new Error("Tenant ID eksik");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) throw new Error("Tenant ID eksik");
 
       const { error } = await supabase
         .from('tenants')
         .update({ name })
-        .eq('id', tenantId);
+        .eq('id', tenantInfo.tenantId);
 
       if (error) throw error;
       toast.success("Genel işletme ayarları kaydedildi.");
@@ -111,13 +114,14 @@ export function TenantSettings() {
   const handleSaveIntegration = async () => {
     setSaving(true);
     try {
-      const tenantId = localStorage.getItem("impersonate_tenant_id");
-      if (!tenantId) throw new Error("Tenant ID eksik");
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) throw new Error("Tenant ID eksik");
 
       const { error } = await supabase
         .from('tenants')
         .update({ whatsapp_api_key: whatsappKey })
-        .eq('id', tenantId);
+        .eq('id', tenantInfo.tenantId);
 
       if (error) throw error;
       toast.success("Entegrasyon ayarları kaydedildi.");

@@ -44,12 +44,13 @@ export function StudentManagement() {
   const fetchData = async () => {
     setLoading(true);
     
-    // Check if we are impersonating a tenant (from Super Admin)
-    const impersonatedTenantId = localStorage.getItem("impersonate_tenant_id");
-    let activeTenantId = impersonatedTenantId;
+    // Güvenli tenant ID çözümlemesi (httpOnly cookie veya JWT üzerinden)
+    const { getCurrentTenant } = await import("@/app/actions/tenant");
+    const tenantInfo = await getCurrentTenant();
+    let activeTenantId = tenantInfo?.tenantId || null;
 
     if (!activeTenantId) {
-      // Get actual user's tenant ID
+      // Fallback: doğrudan profil sorgusu
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user) {
         const { data: profile } = await supabase.from('profiles').select('tenant_id').eq('user_id', authData.user.id).single();
