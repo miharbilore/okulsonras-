@@ -23,8 +23,8 @@ export async function POST(request: Request) {
     if (!isCron) {
       // Dışarıdan veya uygulamadan gelen standart yedekleme talebi
       // @/lib/supabase-server veya @/lib/supabase/server (versiyona göre)
-      const { createServerClient } = await import('@/lib/supabase/server');
-      const supabase = await createServerClient();
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
       const { data: authData } = await supabase.auth.getUser();
       
       if (!authData?.user) {

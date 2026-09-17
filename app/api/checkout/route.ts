@@ -91,10 +91,9 @@ export async function POST(request: Request) {
       ],
     };
 
-    // Promise wrapper for iyzipay callback
     const initializeCheckout = (): Promise<any> => {
       return new Promise((resolve, reject) => {
-        iyzipay.checkoutFormInitialize.create(requestData, function (err: any, result: any) {
+        iyzipay.checkoutFormInitialize.create(requestData as any, function (err: any, result: any) {
           if (err) reject(err);
           else resolve(result);
         });

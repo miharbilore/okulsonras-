@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
+import { revalidatePath } from 'next/cache';
 import { sendCheckInMessage } from '@/lib/whatsapp';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const phone = student.parent_phone;
     if (!phone) {
       // Veli telefonu yoksa cache güncelleyip dön
-      revalidateTag(`student-${studentId}`);
+      revalidatePath(`/veli/${studentId}`, 'page');
       return NextResponse.json({ success: true, message: 'Öğrenci giriş yaptı ama veli telefonu yok' });
     }
 
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
     }
 
     // Cache'i Anında Temizle
-    revalidateTag(`student-${studentId}`);
+    revalidatePath(`/veli/${studentId}`, 'page');
 
     return NextResponse.json({ success: true, queued: isWhatsAppEnabled });
 
