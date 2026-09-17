@@ -16,7 +16,7 @@ const GREENAPI_BASE = `https://api.green-api.com/waInstance${GREENAPI_INSTANCE_I
  * @param phone - Alıcı telefon numarası (Örn: 905551234567)
  * @param message - Gönderilecek metin
  */
-async function sendWhatsAppMessage(phone: string, message: string) {
+export async function sendWhatsAppMessage(phone: string, message: string) {
   // Telefon numarasını formata çevir (başında 0 varsa kaldır, +90 ekle)
   const cleanPhone = phone.replace(/\D/g, "");
   const formattedPhone = cleanPhone.startsWith("0")
@@ -90,10 +90,41 @@ export async function getWhatsAppQR(): Promise<{ qr: string | null; message: str
 // MESAJ ŞABLONLARI
 // =============================================
 
+import { createClient } from "@supabase/supabase-js";
+
+// =============================================
+// QUEUE & MESSAGE SENDING
+// =============================================
+
 /**
- * Öğrenci giriş yaptığında veliye bildirim gönderir.
+ * Kuyruğa mesaj ekler. Serverless timeout'ları ve WhatsApp API kısıtlamalarını aşmak için
+ * gönderimler anlık değil, veritabanı üzerinden asenkron yapılır.
+ */
+export async function enqueueWhatsAppMessage(tenantId: string, phone: string, message: string) {
+  // Service Role ile ekleyelim (Kiosk API gibi anonim uç noktalardan da ekleyebilmek için)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  const { error } = await supabaseAdmin.from('whatsapp_queue').insert({
+    tenant_id: tenantId,
+    phone,
+    message
+  });
+  
+  if (error) {
+    console.error("[WhatsApp] Kuyruğa eklenemedi:", error);
+    return { success: false, error: error.message };
+  }
+  return { success: true };
+}
+
+/**
+ * Öğrenci giriş yaptığında veliye bildirim gönderir (Kuyruğa atar).
  */
 export async function sendCheckInMessage(
+  tenantId: string,
   parentPhone: string,
   studentName: string,
   checkInType: "qr" | "pin",
@@ -105,13 +136,14 @@ export async function sendCheckInMessage(
 
   const message = `📍 *OkulSonrası Giriş Bildirimi*\n\n${studentName} adlı öğrenci saat ${time}'de ${method} ile güvenle giriş yaptı.\n\n🔗 Canlı Takip: ${trackingUrl}`;
 
-  return sendWhatsAppMessage(parentPhone, message);
+  return enqueueWhatsAppMessage(tenantId, parentPhone, message);
 }
 
 /**
- * Veliye haftalık veresiye döküm mesajı gönderir (Pazar günleri).
+ * Veliye haftalık veresiye döküm mesajı gönderir (Pazar günleri). (Kuyruğa atar).
  */
 export async function sendWeeklyReportMessage(
+  tenantId: string,
   parentPhone: string,
   studentName: string,
   totalAmount: number,
@@ -120,32 +152,37 @@ export async function sendWeeklyReportMessage(
   paymentUrl: string = "https://odeme.okulsonrasi.com"
 ) {
   const trackingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://okulsonrasi.com"}/veli/${studentId}`;
-
   const message = `Sayın Veli,\n\n${studentName}'nın bu haftaki ${tenantName} veresiye kafe harcaması toplam ${totalAmount.toFixed(2)} TL'dir.\n\nHaftalık Detaylı Harcama Dökümü: ${trackingUrl}\n\nÜyelik ücretinize eklenen bu tutarı ${paymentUrl} üzerinden veya mekanda ödeyebilirsiniz. İyi pazarlar!`;
 
-  return sendWhatsAppMessage(parentPhone, message);
+  return enqueueWhatsAppMessage(tenantId, parentPhone, message);
 }
 
 /**
- * Toplu duyuru mesajı gönderir (admin panelinden tetiklenir).
+ * Toplu duyuru mesajı kuyruğa atar. Blocking bekleme ortadan kaldırıldı.
  */
 export async function sendBulkAnnouncement(
+  tenantId: string,
   phones: string[],
   message: string
-): Promise<{ sent: number; failed: number }> {
-  let sent = 0;
-  let failed = 0;
+): Promise<{ queued: number; failed: number }> {
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 
-  for (const phone of phones) {
-    const result = await sendWhatsAppMessage(phone, message + "\n\n— OkulSonrası Veli Bilgilendirme Servisi");
-    if (result.success) {
-      sent++;
-    } else {
-      failed++;
-    }
-    // Rate limiting: Green-API üzerinde mesaj aralığı bırak
-    await new Promise((r) => setTimeout(r, 1500));
+  // Bulk insert for better performance
+  const payload = phones.map(phone => ({
+    tenant_id: tenantId,
+    phone,
+    message: message + "\n\n— OkulSonrası Veli Bilgilendirme Servisi"
+  }));
+
+  const { data, error } = await supabaseAdmin.from('whatsapp_queue').insert(payload);
+
+  if (error) {
+    console.error("[WhatsApp] Toplu mesaj kuyruğa eklenemedi:", error);
+    return { queued: 0, failed: phones.length };
   }
 
-  return { sent, failed };
+  return { queued: phones.length, failed: 0 };
 }

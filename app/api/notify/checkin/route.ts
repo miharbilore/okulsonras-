@@ -60,14 +60,14 @@ export async function POST(request: Request) {
     const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
 
     if (GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token') {
-      try {
-        await sendCheckInMessage(phone, student.full_name, checkInType || 'qr', studentId);
-      } catch (notifyError) {
-        console.error("Failed to send check-in message:", notifyError);
-      }
+      // Mesajı kuyruğa atıp (await ile ama db'ye yazmak hızlıdır) çıkıyoruz, kiosk beklemez
+      sendCheckInMessage(student.tenant_id, phone, student.full_name, checkInType || 'qr', studentId).catch((err) => {
+        console.error("Failed to enqueue check-in message:", err);
+      });
     }
 
-    return NextResponse.json({ success: true });
+    // Hemen yanıt dönüyoruz (Asenkron kuyruk)
+    return NextResponse.json({ success: true, queued: true });
 
   } catch (error) {
     console.error("Error processing check-in notification:", error);
