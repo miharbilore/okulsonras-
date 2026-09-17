@@ -15,9 +15,13 @@ export async function GET(request: Request) {
       }
     }
 
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ success: false, error: "Missing Supabase URL or Service Role Key in environment variables" }, { status: 500 });
+    }
+
     const supabaseAdmin = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
     // İşlenmek üzere en eski bekleyen 10 mesajı al (Rate limit'e uygun sayıda)

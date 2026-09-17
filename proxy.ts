@@ -56,7 +56,7 @@ export async function proxy(request: NextRequest) {
   // 2. Protected API Routes
   if (path.startsWith("/api")) {
     // Exclude public API endpoints like webhooks or kiosk triggers
-    const publicApiRoutes = ["/api/notify/checkin", "/api/checkout/callback"];
+    const publicApiRoutes = ["/api/notify/checkin", "/api/checkout/callback", "/api/cron"];
     const isPublicApi = publicApiRoutes.some((route) => path.startsWith(route));
 
     if (!isPublicApi && !user) {
