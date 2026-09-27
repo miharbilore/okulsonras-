@@ -1,0 +1,17 @@
+name: WhatsApp Queue Processor (Cron)
+
+on:
+  schedule:
+    # Her 15 dakikada bir çalıştır
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Manuel tetiklemeye izin ver
+
+jobs:
+  process-queue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Process WhatsApp Queue Endpoint
+        run: |
+          curl -X GET "https://${{ secrets.PROJECT_DOMAIN }}/api/cron/process-whatsapp-queue" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -v

@@ -5,14 +5,11 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp";
 // Vercel Cron veya Harici Cron servisi ile saniyede/dakikada bir tetiklenir
 export async function GET(request: Request) {
   try {
-    // Basic Auth veya Cron Secret kontrolü yapılabilir
     const authHeader = request.headers.get("authorization");
-    if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      // Eğer CRON_SECRET ayarlıysa ve eşleşmiyorsa engelle
-      // Localde test edebilmek için bu kısmı esnek tutuyoruz, gerçekte 401 dönülmeli.
-      if (process.env.NODE_ENV === "production") {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    const cronSecret = process.env.CRON_SECRET;
+
+    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {

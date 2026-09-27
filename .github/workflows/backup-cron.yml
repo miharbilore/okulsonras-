@@ -1,0 +1,17 @@
+name: Daily Google Drive Backup (Cron)
+
+on:
+  schedule:
+    # Her gün gece saat 03:00'te çalıştır
+    - cron: '0 3 * * *'
+  workflow_dispatch: # Manuel tetiklemeye izin ver
+
+jobs:
+  run-backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Drive Backup Endpoint
+        run: |
+          curl -X POST "https://${{ secrets.PROJECT_DOMAIN }}/api/backup/drive" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -v
