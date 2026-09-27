@@ -161,7 +161,7 @@ export default function LandingPage() {
             <p className="text-lg text-slate-500 max-w-2xl mx-auto">Gizli ücret yok, sürpriz yok. İşletmenizin büyüklüğüne en uygun paketi seçin.</p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {/* Standart Paket */}
             <Card className="rounded-3xl border-2 hover:border-primary/30 transition-all p-2 bg-white">
               <CardHeader className="p-8">
@@ -194,14 +194,14 @@ export default function LandingPage() {
               </div>
               <CardHeader className="p-8">
                 <CardTitle className="text-2xl font-bold mb-2">Profesyonel Paket</CardTitle>
-                <CardDescription className="text-base">Büyüyen kulüpler için tüm özellikler sınırsız.</CardDescription>
+                <CardDescription className="text-base">Büyüyen işletmeler için WhatsApp otomasyonu.</CardDescription>
                 <div className="my-6">
                   <span className="text-5xl font-black tracking-tight">₺1.950</span>
                   <span className="text-slate-500 font-semibold"> /ay</span>
                 </div>
               </CardHeader>
               <CardContent className="px-8 pb-8 space-y-4">
-                {['Sınırsız Öğrenci Yönetimi', 'Tüm Standart Özellikler', 'Otomatik WhatsApp Bildirimleri', 'Velilere Toplu Kampanya Duyurusu', 'Özel Logo Entegrasyonu', 'Öncelikli Destek'].map((feat, i) => (
+                {['Sınırsız Öğrenci Yönetimi', 'Tüm Standart Özellikler', 'Merkezi Numara İle WhatsApp Bildirimi', 'Velilere Toplu Kampanya Duyurusu', 'Özel Logo Entegrasyonu', 'Öncelikli Destek'].map((feat, i) => (
                   <div key={i} className="flex items-center gap-3">
                     <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />
                     <span className="font-medium text-slate-700">{feat}</span>
@@ -210,6 +210,29 @@ export default function LandingPage() {
               </CardContent>
               <CardFooter className="px-8 pb-8">
                 <Button className="w-full h-14 rounded-xl text-lg font-bold" onClick={() => handleCheckout('professional')}>14 Gün Ücretsiz Dene</Button>
+              </CardFooter>
+            </Card>
+
+            {/* Kurumsal Paket */}
+            <Card className="rounded-3xl border-2 hover:border-slate-800 transition-all p-2 bg-slate-900 text-white">
+              <CardHeader className="p-8">
+                <CardTitle className="text-2xl font-bold mb-2">Kurumsal Paket</CardTitle>
+                <CardDescription className="text-slate-400 text-base">Güven ve marka itibarını en üst düzeye çıkarın.</CardDescription>
+                <div className="my-6">
+                  <span className="text-5xl font-black tracking-tight text-white">₺2.950</span>
+                  <span className="text-slate-400 font-semibold"> /ay</span>
+                </div>
+              </CardHeader>
+              <CardContent className="px-8 pb-8 space-y-4">
+                {['Sınırsız Öğrenci ve Kullanım', 'Kendi Numaranız ile WhatsApp (QR Okutmalı)', 'Ayrılmış Sunucu Kaynakları', 'Kişiselleştirilmiş Arayüz', '7/24 Telefon & Uzaktan Destek', 'Ücretsiz Kurulum Hizmeti'].map((feat, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-amber-400 shrink-0" />
+                    <span className="font-medium text-slate-200">{feat}</span>
+                  </div>
+                ))}
+              </CardContent>
+              <CardFooter className="px-8 pb-8">
+                <Button variant="secondary" className="w-full h-14 rounded-xl text-lg font-bold text-slate-900 hover:bg-slate-200" onClick={() => handleCheckout('enterprise')}>İletişime Geç</Button>
               </CardFooter>
             </Card>
           </div>
@@ -232,7 +255,7 @@ export default function LandingPage() {
             <AccordionItem value="item-2" className="px-2">
               <AccordionTrigger className="text-left text-lg font-bold hover:no-underline hover:text-primary">WhatsApp mesajları için ekstra ücret öder miyim?</AccordionTrigger>
               <AccordionContent className="text-base text-slate-600 leading-relaxed pt-2">
-                Hayır, Profesyonel Paket'e dahil olduğunuzda sistem WhatsApp Web cihazınızı QR kod ile eşleştirir. Kendi numaranız üzerinden ücretsiz olarak otomatik mesaj gönderimi sağlanır.
+                Profesyonel Paket'te mesajlar "OkulSonrası Merkezi" numarası üzerinden ücretsiz gönderilir. Eğer mesajların bizzat işletmenize ait numaradan gönderilmesini isterseniz, Kurumsal Paket'e geçerek kendi WhatsApp numaranızı bağlayabilirsiniz.
               </AccordionContent>
             </AccordionItem>
             <AccordionItem value="item-3" className="px-2">
