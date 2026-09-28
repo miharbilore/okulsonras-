@@ -13,7 +13,7 @@ import { toast } from "sonner";
 
 export default function LandingPage() {
 
-  const handleCheckout = async (plan: 'standard' | 'professional') => {
+  const handleCheckout = async (plan: 'standard' | 'professional' | 'enterprise') => {
     toast.loading("Ödeme sayfası hazırlanıyor...", { id: "checkout" });
     try {
       const { createClient } = await import("@/lib/supabase");
