@@ -208,7 +208,12 @@ function LoginContent() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="font-semibold">Şifre</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="password" className="font-semibold">Şifre</Label>
+                  <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                    Şifremi Unuttum
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
