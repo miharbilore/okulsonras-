@@ -64,7 +64,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // Redirect logged-in users away from auth pages
+  // Redirect logged-in users away from login/register (but NOT from password reset pages)
   if (user && (path === "/login" || path === "/register")) {
     url.pathname = "/admin";
     return NextResponse.redirect(url);

@@ -59,7 +59,7 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -72,11 +72,19 @@ export default function RegisterPage() {
 
       if (error) throw error;
 
-      toast.success("Hesabınız oluşturuldu! Lütfen e-posta kutunuzu kontrol edin ve gelen doğrulama linkine tıklayın.", { duration: 8000 });
-      // Redirect is still fine but give them a clear instruction. If they click the email link, it opens a new tab.
-      setTimeout(() => {
-        router.replace("/login?message=check-email");
-      }, 3000);
+      // Supabase'de "Confirm email" kapalıysa, kullanıcı otomatik olarak oturum açar
+      // ve data.session dolu gelir. Açıksa session null gelir ve doğrulama beklenir.
+      if (data.session) {
+        // Email doğrulaması kapalı - direkt onboarding'e yönlendir
+        toast.success("Hesabınız oluşturuldu! İşletmenizi kurmaya başlayın.");
+        router.replace("/onboarding");
+      } else {
+        // Email doğrulaması açık - kullanıcıyı bilgilendir
+        toast.success("Hesabınız oluşturuldu! Lütfen e-posta kutunuzu kontrol edin ve gelen doğrulama linkine tıklayın.", { duration: 8000 });
+        setTimeout(() => {
+          router.replace("/login?message=check-email");
+        }, 3000);
+      }
     } catch (error: unknown) {
       toast.error(`Kayıt başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
     } finally {
