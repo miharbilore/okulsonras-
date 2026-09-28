@@ -7,51 +7,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { QrCode, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react";
+import { QrCode, Mail, Lock, ArrowRight, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { createClient, getUserRole } from "@/lib/supabase";
 
 function mapAuthErrorMessage(message?: string) {
   if (!message) return "Bilinmeyen hata";
-
   const lowerMessage = message.toLowerCase();
-
-  if (lowerMessage.includes("email not confirmed")) {
-    return "E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı onaylayın.";
-  }
-
-  if (lowerMessage.includes("invalid login credentials")) {
-    return "E-posta veya şifre hatalı.";
-  }
-
-  if (lowerMessage.includes("profile_lookup_failed")) {
-    return "Profiliniz okunamadı. Lütfen tekrar deneyin.";
-  }
-
+  if (lowerMessage.includes("email not confirmed")) return "E-posta adresiniz henüz doğrulanmamış. Lütfen e-postanızı onaylayın.";
+  if (lowerMessage.includes("invalid login credentials")) return "E-posta veya şifre hatalı.";
+  if (lowerMessage.includes("profile_lookup_failed")) return "Profiliniz okunamadı. Lütfen tekrar deneyin.";
   return message;
 }
 
 function getErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  if (typeof error === "string") {
-    return error;
-  }
-
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
   return undefined;
 }
 
 function mapCallbackError(errorParam: string | null) {
   if (!errorParam) return null;
-
   const messages: Record<string, string> = {
     no_code: "OAuth dönüşünde kod alınamadı.",
     auth_failed: "Google oturumu başlatılamadı. Tekrar deneyin.",
     profile_lookup_failed: "Profil kontrolü sırasında hata oluştu.",
   };
-
   return messages[errorParam] ?? "Giriş sırasında bir hata oluştu.";
 }
 
@@ -64,6 +45,7 @@ function getSafeNextPath(nextPath: string | null) {
 function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
@@ -73,10 +55,7 @@ function LoginContent() {
 
   useEffect(() => {
     const callbackError = mapCallbackError(searchParams.get("error"));
-    if (callbackError) {
-      toast.error(callbackError);
-    }
-    
+    if (callbackError) toast.error(callbackError);
     if (searchParams.get("message") === "check-email") {
       toast.info("E-posta adresinize doğrulama bağlantısı gönderildi. Lütfen kontrol edin.", { duration: 8000 });
     }
@@ -84,36 +63,18 @@ function LoginContent() {
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!email || !password) {
       toast.error("Lütfen e-posta ve şifre alanlarını doldurun.");
       return;
     }
-
     setIsLoading(true);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.user) throw new Error("Kullanıcı bulunamadı.");
-
       const { role, tenantId } = await getUserRole(data.user.id);
-
-      if (!role || (!tenantId && role !== "super_admin")) {
-        router.replace("/onboarding");
-        return;
-      }
-
-      if (role === "super_admin") {
-        toast.success("Süper Admin olarak giriş yapıldı!");
-        router.replace("/super-admin");
-        return;
-      }
-
+      if (!role || (!tenantId && role !== "super_admin")) { router.replace("/onboarding"); return; }
+      if (role === "super_admin") { toast.success("Süper Admin olarak giriş yapıldı!"); router.replace("/super-admin"); return; }
       toast.success("İşletme yöneticisi olarak giriş yapıldı!");
       router.replace(nextPath);
     } catch (error: unknown) {
@@ -125,18 +86,10 @@ function LoginContent() {
 
   const handleGoogleLogin = async () => {
     setIsLoading(true);
-
     try {
       const redirectUrl = new URL("/auth/callback", window.location.origin);
       redirectUrl.searchParams.set("next", nextPath);
-
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUrl.toString(),
-        },
-      });
-
+      const { error } = await supabase.auth.signInWithOAuth({ provider: "google", options: { redirectTo: redirectUrl.toString() } });
       if (error) throw error;
     } catch (error: unknown) {
       toast.error(`Google ile giriş başarısız: ${mapAuthErrorMessage(getErrorMessage(error))}`);
@@ -145,32 +98,67 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-primary/30 flex items-center justify-center p-6 relative overflow-hidden">
-      <div className="absolute top-0 left-0 w-full h-full opacity-10">
-        <div className="absolute top-[10%] left-[15%] w-96 h-96 bg-primary rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-[10%] right-[10%] w-80 h-80 bg-blue-500 rounded-full blur-[100px]"></div>
-      </div>
-
-      <div className="w-full max-w-md relative z-10">
-        <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-3 mb-6 group">
+    <div className="min-h-screen flex">
+      {/* Sol Panel - Bilgi */}
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative items-center justify-center p-12">
+        <div className="absolute inset-0 opacity-15">
+          <div className="absolute top-[20%] left-[10%] w-72 h-72 bg-primary rounded-full blur-[100px]" />
+          <div className="absolute bottom-[15%] right-[15%] w-64 h-64 bg-blue-500 rounded-full blur-[80px]" />
+        </div>
+        <div className="relative z-10 max-w-lg">
+          <Link href="/" className="inline-flex items-center gap-3 mb-12 group">
             <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform">
               <QrCode className="w-7 h-7" />
             </div>
             <span className="text-3xl font-extrabold text-white tracking-tight">OkulSonrası</span>
           </Link>
-          <p className="text-slate-400 font-medium">Yönetim Paneline Giriş Yapın</p>
+          <h1 className="text-4xl font-extrabold text-white leading-tight mb-6">
+            İşletmenizi<br />
+            <span className="text-primary">tek panelden</span> yönetin.
+          </h1>
+          <p className="text-slate-400 text-lg leading-relaxed mb-10">
+            Öğrenci giriş-çıkışı, kantin POS, veli WhatsApp bildirimleri ve detaylı raporlar — hepsi tek ekranda.
+          </p>
+          <div className="space-y-4">
+            {[
+              "Kiosk ile anlık giriş-çıkış takibi",
+              "Velilere otomatik WhatsApp bildirimi",
+              "Kantin veresiye ve POS yönetimi"
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <span className="text-slate-300 font-medium">{item}</span>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
 
-        <Card className="rounded-3xl shadow-2xl border-white/10 bg-white/95 backdrop-blur-xl">
-          <CardHeader className="text-center pb-2">
-            <CardTitle className="text-2xl font-extrabold">Hoş Geldiniz</CardTitle>
-            <CardDescription>Devam etmek için giriş yapın.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6 px-8 pb-8">
+      {/* Sağ Panel - Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-slate-50">
+        <div className="w-full max-w-[440px]">
+          {/* Mobilde Logo */}
+          <div className="text-center mb-8 lg:hidden">
+            <Link href="/" className="inline-flex items-center gap-3 mb-4 group">
+              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/30">
+                <QrCode className="w-6 h-6" />
+              </div>
+              <span className="text-2xl font-extrabold text-slate-900 tracking-tight">OkulSonrası</span>
+            </Link>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">Hoş Geldiniz</h2>
+            <p className="text-slate-500 mt-2 font-medium">Yönetim panelinize giriş yapın</p>
+          </div>
+
+          <div className="space-y-6">
+            {/* Google */}
             <Button
               variant="outline"
-              className="w-full h-14 text-base font-bold rounded-xl border-2 hover:bg-slate-50 transition-all"
+              className="w-full h-13 text-base font-bold rounded-xl border-2 border-slate-200 hover:bg-white hover:border-slate-300 transition-all bg-white shadow-sm"
               onClick={handleGoogleLogin}
               disabled={isLoading}
             >
@@ -183,18 +171,20 @@ function LoginContent() {
               Google ile Giriş Yap
             </Button>
 
+            {/* Ayırıcı */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <span className="w-full border-t border-slate-200"></span>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-3 text-slate-400 font-bold tracking-wider">veya</span>
+                <span className="bg-slate-50 px-4 text-slate-400 font-bold tracking-wider">veya e-posta ile</span>
               </div>
             </div>
 
-            <form onSubmit={handleEmailLogin} className="space-y-4">
+            {/* Form */}
+            <form onSubmit={handleEmailLogin} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="email" className="font-semibold">E-posta Adresi</Label>
+                <Label htmlFor="email" className="text-sm font-semibold text-slate-700">E-posta Adresi</Label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
@@ -203,14 +193,16 @@ function LoginContent() {
                     placeholder="ornek@okulsonrasi.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 h-12 rounded-xl text-base"
+                    className="pl-10 h-12 rounded-xl text-base bg-white border-slate-200 focus:border-primary"
+                    autoComplete="email"
                   />
                 </div>
               </div>
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="font-semibold">Şifre</Label>
-                  <Link href="/forgot-password" className="text-sm font-medium text-primary hover:underline">
+                  <Label htmlFor="password" className="text-sm font-semibold text-slate-700">Şifre</Label>
+                  <Link href="/forgot-password" className="text-sm font-semibold text-primary hover:text-primary/80 transition-colors">
                     Şifremi Unuttum
                   </Link>
                 </div>
@@ -218,17 +210,26 @@ function LoginContent() {
                   <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 h-12 rounded-xl text-base"
+                    className="pl-10 pr-10 h-12 rounded-xl text-base bg-white border-slate-200 focus:border-primary"
+                    autoComplete="current-password"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
+
               <Button
                 type="submit"
-                className="w-full h-14 text-lg font-bold rounded-xl shadow-md shadow-primary/20 mt-2"
+                className="w-full h-13 text-base font-bold rounded-xl shadow-lg shadow-primary/20"
                 disabled={isLoading}
               >
                 {isLoading ? "Giriş Yapılıyor..." : "Giriş Yap"}
@@ -236,25 +237,30 @@ function LoginContent() {
               </Button>
             </form>
 
-            <div className="flex items-center justify-center gap-2 pt-2 text-sm text-slate-400">
+            {/* Alt Bilgi */}
+            <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
               <ShieldCheck className="w-4 h-4 text-green-500" />
-              <span>256-bit SSL ile güvende · 2FA Destekli</span>
+              <span>256-bit SSL ile güvende</span>
             </div>
-          </CardContent>
-        </Card>
 
-        <p className="text-center mt-6 text-slate-500 text-sm">
-          <Link href="/" className="text-primary hover:underline font-semibold">← Ana Sayfaya Dön</Link>
-        </p>
+            <div className="text-center pt-2">
+              <p className="text-slate-500 text-sm">
+                Hesabınız yok mu?{" "}
+                <Link href="/register" className="text-primary font-bold hover:underline">
+                  Ücretsiz Kayıt Olun
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
-
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">Yükleniyor...</div>}>
+    <Suspense fallback={<div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Yükleniyor...</div>}>
       <LoginContent />
     </Suspense>
   );
