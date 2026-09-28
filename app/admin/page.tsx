@@ -153,13 +153,13 @@ export default function AdminPage() {
 
       {/* MOBILE HEADER */}
       <div className="md:hidden fixed top-0 left-0 w-full h-16 bg-white border-b z-50 flex items-center justify-between px-4 print:hidden">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="w-8 h-8 bg-primary text-primary-foreground rounded-xl flex items-center justify-center">
             <LayoutDashboard className="w-4 h-4" />
           </div>
           <h1 className="text-lg font-black">Admin</h1>
-        </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600">
+        </Link>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 text-slate-600 rounded-lg hover:bg-slate-100">
           {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>

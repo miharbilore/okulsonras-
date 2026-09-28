@@ -8,7 +8,7 @@ import { QrCode, Menu, X, Home, LogOut, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 // Bu sayfalar kendi header/footer'larını kullanır, global olanı göstermeyiz
-const STANDALONE_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/kiosk", "/pos"];
+const STANDALONE_PAGES = ["/login", "/register", "/forgot-password", "/reset-password", "/kiosk", "/pos", "/admin", "/super-admin", "/onboarding", "/veli"];
 
 export function AppHeader() {
   const pathname = usePathname();
