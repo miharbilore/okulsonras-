@@ -9,7 +9,7 @@ import { Grid3x3, Loader2, XCircle } from "lucide-react";
 
 import { createClient } from "@/lib/supabase";
 
-type KioskState = 'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR';
+type KioskState = 'IDLE' | 'LOADING' | 'SUCCESS_IN' | 'SUCCESS_OUT' | 'ERROR';
 
 export default function KioskPage() {
   const [state, setState] = useState<KioskState>('IDLE');
@@ -36,23 +36,30 @@ export default function KioskPage() {
         throw new Error("Geçersiz Kod: Sistemde böyle bir öğrenci bulunamadı.");
       }
 
-      // 2. Yoklama (Attendances) tablosuna check_in_type ile kayıt at (Hata verse de bloklama)
-      supabase.from('attendances').insert({
-        tenant_id: student.tenant_id,
-        student_id: student.id,
-        check_in_type: type
-      }).then();
-
-      // Başarılı giriş
-      setStudentName(student.full_name);
-      setState('SUCCESS');
-      
-      // Veliye WhatsApp bildirimi gönder (fire-and-forget)
-      fetch('/api/notify/checkin', {
+      // API'ye gönder (DB Insert, Check-in/Check-out mantığı ve Bildirimler orada)
+      const response = await fetch('/api/notify/checkin', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ studentId: student.id, checkInType: type }),
-      }).catch(() => {}); // Bildirim hatası kiosk'u etkilememeli
+      });
+      
+      const result = await response.json();
+      
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "İşlem başarısız.");
+      }
+
+      // API'den dönen aksiyona göre işlem
+      setStudentName(student.full_name);
+      
+      if (result.action === 'cooldown') {
+        setErrorMessage("Zaten az önce giriş yaptınız! Çıkış için lütfen bekleyin.");
+        setState('ERROR');
+      } else if (result.action === 'out') {
+        setState('SUCCESS_OUT');
+      } else {
+        setState('SUCCESS_IN');
+      }
       
       // 3 Saniye Sonra Auto-Reset
       setTimeout(() => {
@@ -63,10 +70,9 @@ export default function KioskPage() {
       setErrorMessage(err.message || "Bir hata oluştu.");
       setState('ERROR');
       
-      // 2 Saniye Sonra Auto-Reset (Hata Durumu)
       setTimeout(() => {
         resetKiosk();
-      }, 2000);
+      }, 3000);
     }
   };
 
@@ -99,7 +105,7 @@ export default function KioskPage() {
                   OkulSonrası<span className="text-primary">.</span>
                 </h1>
                 <p className="text-2xl text-muted-foreground font-medium">
-                  Giriş yapmak için QR kodunuzu okutun
+                  Giriş veya Çıkış yapmak için QR kodunuzu okutun
                 </p>
               </div>
               
@@ -117,16 +123,22 @@ export default function KioskPage() {
             </div>
           )}
 
-          {state === 'SUCCESS' && (
+          {state === 'SUCCESS_IN' && (
             <div className="w-full">
-              <SuccessCard studentName={studentName} />
+              <SuccessCard studentName={studentName} type="in" />
+            </div>
+          )}
+
+          {state === 'SUCCESS_OUT' && (
+            <div className="w-full">
+              <SuccessCard studentName={studentName} type="out" />
             </div>
           )}
 
           {state === 'ERROR' && (
             <div className="flex flex-col items-center justify-center p-12 bg-destructive/10 rounded-3xl border-2 border-destructive animate-in shake duration-300 shadow-2xl">
               <XCircle className="w-32 h-32 text-destructive mb-6" />
-              <h2 className="text-4xl font-bold text-foreground mb-4 text-center">Giriş Başarısız</h2>
+              <h2 className="text-4xl font-bold text-foreground mb-4 text-center">İşlem Başarısız</h2>
               <p className="text-2xl text-destructive font-medium text-center">{errorMessage}</p>
             </div>
           )}

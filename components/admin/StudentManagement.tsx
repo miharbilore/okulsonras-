@@ -282,7 +282,7 @@ export function StudentManagement() {
           )}
         </div>
 
-        <div className="border rounded-xl bg-card shadow-sm overflow-hidden">
+        <div className="border rounded-xl bg-card shadow-sm overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/50">
               <TableRow>

@@ -1,23 +1,19 @@
 /**
  * lib/whatsapp.ts
- * Gerçek WhatsApp Gateway Servisi
- * Green-API / UltraMsg Entegrasyonu
+ * Meta WhatsApp Cloud API Entegrasyonu
  */
 
-// =============================================
-// GREEN-API YAPILANDIRMASI
-// =============================================
-const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
-const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
-const GREENAPI_BASE = `https://api.green-api.com/waInstance${GREENAPI_INSTANCE_ID}`;
+import { createClient } from "@supabase/supabase-js";
+
+interface TenantWhatsAppConfig {
+  meta_phone_id?: string;
+  meta_token?: string;
+}
 
 /**
- * Green-API üzerinden WhatsApp mesajı gönderir.
- * @param phone - Alıcı telefon numarası (Örn: 905551234567)
- * @param message - Gönderilecek metin
+ * WhatsApp mesajı gönderir (Sadece resmi Meta Cloud API üzerinden).
  */
-export async function sendWhatsAppMessage(phone: string, message: string) {
-  // Telefon numarasını formata çevir (başında 0 varsa kaldır, +90 ekle)
+export async function sendWhatsAppMessage(phone: string, message: string, config?: TenantWhatsAppConfig) {
   const cleanPhone = phone.replace(/\D/g, "");
   const formattedPhone = cleanPhone.startsWith("0")
     ? "9" + cleanPhone
@@ -25,164 +21,59 @@ export async function sendWhatsAppMessage(phone: string, message: string) {
     ? cleanPhone
     : "90" + cleanPhone;
 
-  const chatId = `${formattedPhone}@c.us`;
-
+  if (!config || !config.meta_phone_id || !config.meta_token) {
+    return { success: false, error: "Meta WhatsApp API bilgileri eksik." };
+  }
+  
   try {
-    const response = await fetch(`${GREENAPI_BASE}/sendMessage/${GREENAPI_TOKEN}`, {
+    const url = `https://graph.facebook.com/v20.0/${config.meta_phone_id}/messages`;
+    const response = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, message }),
+      headers: {
+        "Authorization": `Bearer ${config.meta_token}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: formattedPhone,
+        type: "text",
+        text: { preview_url: false, body: message }
+      })
     });
-
     const result = await response.json();
-
+    
     if (!response.ok) {
-      throw new Error(result?.message || `HTTP ${response.status}`);
+      throw new Error(result.error?.message || `HTTP ${response.status}`);
     }
-
-    console.log(`[WhatsApp] Mesaj gönderildi -> ${formattedPhone}`, result.idMessage);
-    return { success: true, messageId: result.idMessage };
+    
+    console.log(`[WhatsApp-Meta] Mesaj gönderildi -> ${formattedPhone}`, result.messages?.[0]?.id);
+    return { success: true, messageId: result.messages?.[0]?.id };
   } catch (error: any) {
-    console.error(`[WhatsApp] Gönderim hatası -> ${formattedPhone}:`, error.message);
+    console.error(`[WhatsApp-Meta] Gönderim hatası -> ${formattedPhone}:`, error.message);
     return { success: false, error: error.message };
   }
 }
 
-// =============================================
-// QR KOD İLE CİHAZ EŞLEŞTİRME DURUMU
-// =============================================
-
 /**
- * Green-API instance'ının bağlantı durumunu kontrol eder.
- */
-export async function getWhatsAppStatus(): Promise<{ authorized: boolean; phone?: string }> {
-  try {
-    const res = await fetch(`${GREENAPI_BASE}/getStateInstance/${GREENAPI_TOKEN}`);
-    const data = await res.json();
-    // stateInstance: "authorized" | "notAuthorized" | "blocked" | "sleepMode"
-    return {
-      authorized: data.stateInstance === "authorized",
-      phone: data.phone || undefined,
-    };
-  } catch {
-    return { authorized: false };
-  }
-}
-
-/**
- * QR kodu alır (cihaz henüz eşleştirilmediyse).
- * Bu QR, admin panelindeki WhatsApp kartında gösterilir.
- */
-export async function getWhatsAppQR(): Promise<{ qr: string | null; message: string }> {
-  try {
-    const res = await fetch(`${GREENAPI_BASE}/qr/${GREENAPI_TOKEN}`);
-    const data = await res.json();
-    if (data.type === "qrCode") {
-      return { qr: data.message, message: "QR kodu taratın" };
-    }
-    return { qr: null, message: data.message || "Cihaz zaten bağlı" };
-  } catch (err: any) {
-    return { qr: null, message: "QR alınamadı: " + err.message };
-  }
-}
-
-// =============================================
-// MESAJ ŞABLONLARI
-// =============================================
-
-import { createClient } from "@supabase/supabase-js";
-
-// =============================================
-// QUEUE & MESSAGE SENDING
-// =============================================
-
-/**
- * Kuyruğa mesaj ekler. Serverless timeout'ları ve WhatsApp API kısıtlamalarını aşmak için
- * gönderimler anlık değil, veritabanı üzerinden asenkron yapılır.
+ * Mesajı veritabanındaki kuyruğa (whatsapp_queue) ekler
  */
 export async function enqueueWhatsAppMessage(tenantId: string, phone: string, message: string) {
-  // Service Role ile ekleyelim (Kiosk API gibi anonim uç noktalardan da ekleyebilmek için)
-  const supabaseAdmin = createClient(
+  const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  const { error } = await supabaseAdmin.from('whatsapp_queue').insert({
+  const { error } = await supabase.from("whatsapp_queue").insert({
     tenant_id: tenantId,
     phone,
-    message
+    message,
+    status: "pending",
   });
-  
-  if (error) {
-    console.error("[WhatsApp] Kuyruğa eklenemedi:", error);
-    return { success: false, error: error.message };
-  }
-  return { success: true };
-}
-
-/**
- * Öğrenci giriş yaptığında veliye bildirim gönderir (Kuyruğa atar).
- */
-export async function sendCheckInMessage(
-  tenantId: string,
-  parentPhone: string,
-  studentName: string,
-  checkInType: "qr" | "pin",
-  studentId: string
-) {
-  const time = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-  const method = checkInType === "qr" ? "QR Kod" : "PIN";
-  const trackingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://okulsonrasi.com"}/veli/${studentId}`;
-
-  const message = `📍 *OkulSonrası Giriş Bildirimi*\n\n${studentName} adlı öğrenci saat ${time}'de ${method} ile güvenle giriş yaptı.\n\n🔗 Canlı Takip: ${trackingUrl}`;
-
-  return enqueueWhatsAppMessage(tenantId, parentPhone, message);
-}
-
-/**
- * Veliye haftalık veresiye döküm mesajı gönderir (Pazar günleri). (Kuyruğa atar).
- */
-export async function sendWeeklyReportMessage(
-  tenantId: string,
-  parentPhone: string,
-  studentName: string,
-  totalAmount: number,
-  studentId: string,
-  tenantName: string = "OkulSonrası Mekanı",
-  paymentUrl: string = "https://odeme.okulsonrasi.com"
-) {
-  const trackingUrl = `${process.env.NEXT_PUBLIC_APP_URL || "https://okulsonrasi.com"}/veli/${studentId}`;
-  const message = `Sayın Veli,\n\n${studentName}'nın bu haftaki ${tenantName} veresiye kafe harcaması toplam ${totalAmount.toFixed(2)} TL'dir.\n\nHaftalık Detaylı Harcama Dökümü: ${trackingUrl}\n\nÜyelik ücretinize eklenen bu tutarı ${paymentUrl} üzerinden veya mekanda ödeyebilirsiniz. İyi pazarlar!`;
-
-  return enqueueWhatsAppMessage(tenantId, parentPhone, message);
-}
-
-/**
- * Toplu duyuru mesajı kuyruğa atar. Blocking bekleme ortadan kaldırıldı.
- */
-export async function sendBulkAnnouncement(
-  tenantId: string,
-  phones: string[],
-  message: string
-): Promise<{ queued: number; failed: number }> {
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-
-  // Bulk insert for better performance
-  const payload = phones.map(phone => ({
-    tenant_id: tenantId,
-    phone,
-    message: message + "\n\n— OkulSonrası Veli Bilgilendirme Servisi"
-  }));
-
-  const { data, error } = await supabaseAdmin.from('whatsapp_queue').insert(payload);
 
   if (error) {
-    console.error("[WhatsApp] Toplu mesaj kuyruğa eklenemedi:", error);
-    return { queued: 0, failed: phones.length };
+    console.error("[WhatsApp Queue] Kuyruğa ekleme hatası:", error);
+    return false;
   }
-
-  return { queued: phones.length, failed: 0 };
+  return true;
 }

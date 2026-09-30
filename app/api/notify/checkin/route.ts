@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { revalidatePath } from 'next/cache';
-import { sendCheckInMessage } from '@/lib/whatsapp';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
@@ -65,9 +64,10 @@ export async function POST(request: Request) {
       }
     }
 
+    // Öğrenciyi getir
     const { data: student, error } = await supabaseAdmin
       .from('students')
-      .select('full_name, parent_phone, tenant_id')
+      .select('full_name, parent_phone, tenant_id, tracking_token')
       .eq('id', studentId)
       .single();
 
@@ -79,30 +79,82 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Öğrenci bu işletmeye ait değil' }, { status: 403 });
     }
 
-    const phone = student.parent_phone;
-    if (!phone) {
-      // Veli telefonu yoksa cache güncelleyip dön
-      revalidatePath(`/veli/${studentId}`, 'page');
-      return NextResponse.json({ success: true, message: 'Öğrenci giriş yaptı ama veli telefonu yok' });
+    // --- OTURUM MANTIĞI (GİRİŞ/ÇIKIŞ) ---
+    // En son "active" durumundaki kaydı bul
+    const { data: activeAttendance } = await supabaseAdmin
+      .from('attendances')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    let action: 'in' | 'out' | 'cooldown' = 'in';
+
+    if (activeAttendance) {
+      // Aktif kayıt varsa, ne kadar süre geçmiş?
+      const checkInTime = new Date(activeAttendance.check_in_at || activeAttendance.created_at).getTime();
+      const now = new Date().getTime();
+      const diffMinutes = (now - checkInTime) / 1000 / 60;
+
+      if (diffMinutes < 5) {
+        action = 'cooldown';
+        return NextResponse.json({ success: true, action }); // İşlem yapma
+      } else {
+        // Çıkış yap
+        action = 'out';
+        await supabaseAdmin.from('attendances')
+          .update({
+            status: 'completed',
+            check_out_at: new Date().toISOString(),
+            check_out_type: checkInType
+          })
+          .eq('id', activeAttendance.id);
+      }
+    } else {
+      // Giriş yap
+      action = 'in';
+      await supabaseAdmin.from('attendances')
+        .insert({
+          tenant_id: student.tenant_id,
+          student_id: studentId,
+          check_in_type: checkInType,
+          status: 'active',
+          check_in_at: new Date().toISOString()
+        });
     }
 
-    const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
-    const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
-    const isWhatsAppEnabled = GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token';
+    // --- BİLDİRİM GÖNDERİMİ ---
+    const phone = student.parent_phone;
+    if (phone) {
+      const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
+      const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
+      const isWhatsAppEnabled = GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token';
 
-    const action = checkInType === 'qr' ? 'QR Kod' : 'PIN Kodu';
-    const message = `Sayın velimiz, öğrenciniz ${student.full_name} şu an ${action} ile giriş yapmıştır.\n\nCanlı takip: ${process.env.NEXT_PUBLIC_APP_URL}/veli/${studentId}`;
-
-    if (isWhatsAppEnabled) {
-      // Kuyruğa Ekleme (Asenkron)
-      const { enqueueWhatsAppMessage } = await import('@/lib/whatsapp');
-      await enqueueWhatsAppMessage(student.tenant_id, phone, message);
+      if (isWhatsAppEnabled) {
+        const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
+        // Eğer token migration'ı henüz çalıştırılmadıysa fallback (eski yapı veya 404 durumu)
+        const trackingUrl = student.tracking_token 
+          ? `${process.env.NEXT_PUBLIC_APP_URL}/veli/takip/${student.tracking_token}`
+          : `${process.env.NEXT_PUBLIC_APP_URL}`;
+        
+        let message = '';
+        if (action === 'in') {
+          message = `Sayın Velimiz, öğrencimiz ${student.full_name} saat ${time} itibarıyla kurumumuza giriş yapmıştır.\n\nÇocuğunuzun durumunu ve kantin hareketlerini canlı takip etmek için: ${trackingUrl}`;
+        } else if (action === 'out') {
+          message = `Sayın Velimiz, öğrencimiz ${student.full_name} saat ${time} itibarıyla kurumumuzdan ayrılmıştır.\n\nÇocuğunuzun durumunu ve kantin hareketlerini canlı takip etmek için: ${trackingUrl}`;
+        }
+        
+        const { enqueueWhatsAppMessage } = await import('@/lib/whatsapp');
+        await enqueueWhatsAppMessage(student.tenant_id, phone, message);
+      }
     }
 
     // Cache'i Anında Temizle
     revalidatePath(`/veli/${studentId}`, 'page');
 
-    return NextResponse.json({ success: true, queued: isWhatsAppEnabled });
+    return NextResponse.json({ success: true, action, studentName: student.full_name });
 
   } catch (error: any) {
     console.error("Check-in error:", error);

@@ -17,9 +17,6 @@ export function AppHeader() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const supabase = createClient();
 
-  // Standalone sayfalarda header gösterme
-  if (STANDALONE_PAGES.some((p) => pathname.startsWith(p))) return null;
-
   useEffect(() => {
     const checkUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -45,6 +42,9 @@ export function AppHeader() {
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // Standalone sayfalarda header gösterme (Tüm hooklardan sonra olmalı!)
+  if (STANDALONE_PAGES.some((p) => pathname.startsWith(p))) return null;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

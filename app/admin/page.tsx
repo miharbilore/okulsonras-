@@ -194,8 +194,8 @@ export default function AdminPage() {
       </AnimatePresence>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 w-full flex flex-col md:pl-0 pt-16 md:pt-0 max-w-[1200px] mx-auto min-h-screen print:min-h-0 print:pt-0 print:max-w-none">
-        <div className="flex-1 p-6 lg:p-10">
+      <main className="flex-1 w-full min-w-0 flex flex-col md:pl-0 pt-16 md:pt-0 max-w-[1200px] mx-auto min-h-screen print:min-h-0 print:pt-0 print:max-w-none">
+        <div className="flex-1 p-3 sm:p-6 lg:p-10 w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -203,7 +203,7 @@ export default function AdminPage() {
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
               transition={{ duration: 0.25, ease: "easeOut" }}
-              className="bg-white p-6 md:p-8 rounded-[2rem] border shadow-sm print-hidden"
+              className="bg-white p-4 sm:p-6 md:p-8 sm:rounded-[2rem] rounded-xl border shadow-sm print:hidden w-full overflow-hidden"
             >
               {renderContent()}
             </motion.div>

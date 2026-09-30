@@ -2,18 +2,21 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 
-// Vercel Cron veya Harici Cron servisi ile saniyede/dakikada bir tetiklenir
+// Vercel Pro/Hobby için opsiyonel
+// export const maxDuration = 300; 
+
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
+    // Sadece Cron Job'dan veya yetkili bir servisten tetiklenebilir
     if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ success: false, error: "Missing Supabase URL or Service Role Key in environment variables" }, { status: 500 });
+      return NextResponse.json({ success: false, error: "Missing Supabase URL or Service Role Key" }, { status: 500 });
     }
 
     const supabaseAdmin = createClient(
@@ -22,15 +25,13 @@ export async function GET(request: Request) {
     );
 
     // İşlenmek üzere en eski bekleyen 10 mesajı al (Rate limit'e uygun sayıda)
-    // Supabase RPC (Procedure) veya güvenli update için optimistic locking daha iyidir,
-    // ancak bu basit yaklaşımda id'leri alıp statülerini "processing" yapacağız.
     const { data: pendingMessages, error: fetchError } = await supabaseAdmin
       .from("whatsapp_queue")
-      .select("*")
+      .select("*, tenant:tenants(meta_phone_number_id, meta_access_token)")
       .eq("status", "pending")
       .lte("scheduled_for", new Date().toISOString())
       .order("created_at", { ascending: true })
-      .limit(10); // Her çalışmada 10 mesaj (1.5sn bekleme ile ~15sn sürer, serverless'a uygundur)
+      .limit(10); 
 
     if (fetchError || !pendingMessages || pendingMessages.length === 0) {
       return NextResponse.json({ success: true, processed: 0, message: "No pending messages." });
@@ -50,7 +51,24 @@ export async function GET(request: Request) {
     // Mesajları sırayla gönder
     for (const msg of pendingMessages) {
       try {
-        const result = await sendWhatsAppMessage(msg.phone, msg.message);
+        const tenant = msg.tenant || {};
+        
+        // Eğer Meta API bilgileri girilmemişse 'waiting_config' yapıp geç (crash yapma)
+        if (!tenant.meta_phone_number_id || !tenant.meta_access_token) {
+           await supabaseAdmin
+             .from("whatsapp_queue")
+             .update({ status: "waiting_config", updated_at: new Date().toISOString(), error_log: "Meta API bilgileri eksik." })
+             .eq("id", msg.id);
+           failedCount++;
+           continue;
+        }
+
+        const config = {
+          meta_phone_id: tenant.meta_phone_number_id,
+          meta_token: tenant.meta_access_token
+        };
+
+        const result = await sendWhatsAppMessage(msg.phone, msg.message, config);
         
         if (result.success) {
           await supabaseAdmin
@@ -59,49 +77,27 @@ export async function GET(request: Request) {
             .eq("id", msg.id);
           sentCount++;
         } else {
-          // Başarısız oldu
-          const attempts = (msg.attempts || 0) + 1;
-          const status = attempts >= 3 ? "failed" : "pending"; // 3 denemeden sonra tamamen failed yap
-          
           await supabaseAdmin
             .from("whatsapp_queue")
-            .update({ 
-              status, 
-              attempts, 
-              error_msg: result.error || "Bilinmeyen hata",
-              updated_at: new Date().toISOString(),
-              // Bir sonraki deneme için 5 dk sonraya schedule et (eğer tekrar denenecekse)
-              scheduled_for: status === "pending" ? new Date(Date.now() + 5 * 60000).toISOString() : msg.scheduled_for
-            })
+            .update({ status: "failed", updated_at: new Date().toISOString(), error_log: result.error })
             .eq("id", msg.id);
           failedCount++;
         }
       } catch (err: any) {
-        // Beklenmeyen hata
         await supabaseAdmin
-            .from("whatsapp_queue")
-            .update({ 
-              status: "failed", 
-              error_msg: err.message,
-              updated_at: new Date().toISOString()
-            })
-            .eq("id", msg.id);
+          .from("whatsapp_queue")
+          .update({ status: "failed", updated_at: new Date().toISOString(), error_log: err.message })
+          .eq("id", msg.id);
         failedCount++;
       }
-
-      // API Rate Limit (Green-API için mesaj başına ~1.5 saniye bekle)
-      await new Promise(r => setTimeout(r, 1500));
+      
+      // Meta Rate limit yememek için kısa bir bekleme
+      await new Promise(r => setTimeout(r, 1000));
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      processed: pendingMessages.length, 
-      sent: sentCount, 
-      failed: failedCount 
-    });
-
+    return NextResponse.json({ success: true, processed: pendingMessages.length, sent: sentCount, failed: failedCount });
   } catch (error: any) {
-    console.error("Cron worker error:", error);
+    console.error("WhatsApp Cron Worker Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

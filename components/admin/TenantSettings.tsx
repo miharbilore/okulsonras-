@@ -13,6 +13,9 @@ import { Building2, Save, Smartphone, CheckCircle2, ShieldCheck, Crown, KeyRound
 import { createClient } from "@/lib/supabase";
 import { getApiKeys, generateApiKey, revokeApiKey } from "@/app/actions/api-keys";
 
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { ExternalLink } from "lucide-react";
+
 export function TenantSettings() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
@@ -21,7 +24,18 @@ export function TenantSettings() {
 
   // Form States
   const [name, setName] = useState("");
-  const [whatsappKey, setWhatsappKey] = useState("");
+  const [metaPhoneId, setMetaPhoneId] = useState("");
+  const [metaWabaId, setMetaWabaId] = useState("");
+  const [metaToken, setMetaToken] = useState("");
+  
+  const [testPhone, setTestPhone] = useState("");
+  const [isTestingWhatsapp, setIsTestingWhatsapp] = useState(false);
+  const [isWhatsappVerified, setIsWhatsappVerified] = useState(false);
+
+  const [driveFolderId, setDriveFolderId] = useState("");
+  const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
+  const [lastBackupAt, setLastBackupAt] = useState<string | null>(null);
+
   const [phone, setPhone] = useState("0555 123 4567");
   const [cameraStreamUrl, setCameraStreamUrl] = useState("");
   const [cameraStreamType, setCameraStreamType] = useState("none");
@@ -54,7 +68,16 @@ export function TenantSettings() {
       
       setTenant(data);
       setName(data.name || "");
-      setWhatsappKey(data.whatsapp_api_key || "");
+      setMetaPhoneId(data.meta_phone_number_id || "");
+      setMetaWabaId(data.meta_waba_id || "");
+      setMetaToken(data.meta_access_token || "");
+      if (data.meta_phone_number_id && data.meta_access_token) {
+        setIsWhatsappVerified(true);
+      }
+      
+      setDriveFolderId(data.google_drive_folder_id || "");
+      setAutoBackupEnabled(data.auto_backup_enabled !== false); // default true
+      setLastBackupAt(data.last_backup_at);
       
       const keys = await getApiKeys();
       setApiKeys(keys || []);
@@ -63,6 +86,60 @@ export function TenantSettings() {
       toast.error("İşletme bilgileri yüklenemedi.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveBackup = async () => {
+    setSaving(true);
+    try {
+      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      const tenantInfo = await getCurrentTenant();
+      if (!tenantInfo) throw new Error("Tenant ID eksik");
+
+      // Extract folder ID if it's a URL
+      let finalFolderId = driveFolderId;
+      const match = driveFolderId.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        finalFolderId = match[1];
+        setDriveFolderId(finalFolderId);
+      }
+
+      const { error } = await supabase
+        .from('tenants')
+        .update({
+          google_drive_folder_id: finalFolderId,
+          auto_backup_enabled: autoBackupEnabled
+        })
+        .eq('id', tenantInfo.tenantId);
+
+      if (error) throw error;
+      toast.success("Yedekleme ayarları kaydedildi.");
+    } catch (err: any) {
+      toast.error("Kaydetme başarısız: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleManualBackup = async () => {
+    if (!driveFolderId) {
+      toast.error("Lütfen önce bir Google Drive Klasör ID'si girip kaydedin.");
+      return;
+    }
+    
+    toast.loading("Yedekleme alınıyor, lütfen bekleyin...", { id: "backup" });
+    try {
+      const res = await fetch("/api/backup/drive", { method: "POST" });
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Yedekleme başarısız.");
+      }
+      
+      toast.success("Yedekleme başarıyla tamamlandı!", { id: "backup" });
+      setLastBackupAt(new Date().toISOString());
+    } catch (err: any) {
+      toast.error("Yedekleme hatası: " + err.message, { id: "backup" });
     }
   };
 
@@ -120,7 +197,11 @@ export function TenantSettings() {
 
       const { error } = await supabase
         .from('tenants')
-        .update({ whatsapp_api_key: whatsappKey })
+        .update({
+          meta_phone_number_id: metaPhoneId,
+          meta_waba_id: metaWabaId,
+          meta_access_token: metaToken,
+        })
         .eq('id', tenantInfo.tenantId);
 
       if (error) throw error;
@@ -129,6 +210,42 @@ export function TenantSettings() {
       toast.error("Kaydetme başarısız: " + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleTestWhatsapp = async () => {
+    if (!testPhone) {
+      toast.error("Lütfen bir test telefon numarası girin.");
+      return;
+    }
+    if (!metaPhoneId || !metaToken) {
+      toast.error("Test için Phone Number ID ve Access Token alanları dolu olmalıdır.");
+      return;
+    }
+    
+    setIsTestingWhatsapp(true);
+    toast.loading("Test mesajı gönderiliyor...", { id: "test-wa" });
+    
+    try {
+      const res = await fetch("/api/tenant/whatsapp/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: testPhone, metaPhoneId, metaToken })
+      });
+      const data = await res.json();
+      
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Bilinmeyen bir hata oluştu.");
+      }
+      
+      toast.success("Test mesajı başarıyla gönderildi!", { id: "test-wa" });
+      setIsWhatsappVerified(true);
+      await handleSaveIntegration(); // Başarılıysa doğrudan kaydet
+    } catch (err: any) {
+      setIsWhatsappVerified(false);
+      toast.error(`Meta API Hatası: ${err.message}`, { id: "test-wa" });
+    } finally {
+      setIsTestingWhatsapp(false);
     }
   };
 
@@ -205,9 +322,10 @@ export function TenantSettings() {
       </div>
 
       <Tabs defaultValue="general" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 mb-6 bg-slate-100 p-1 rounded-xl">
+        <TabsList className="flex flex-wrap md:grid md:grid-cols-5 w-full mb-6 bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Building2 className="w-4 h-4 mr-2"/> Genel</TabsTrigger>
           <TabsTrigger value="integrations" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Smartphone className="w-4 h-4 mr-2"/> Entegrasyon</TabsTrigger>
+          <TabsTrigger value="backup" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><RefreshCw className="w-4 h-4 mr-2"/> Yedekleme</TabsTrigger>
           <TabsTrigger value="security" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Lock className="w-4 h-4 mr-2"/> Güvenlik</TabsTrigger>
           <TabsTrigger value="billing" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Crown className="w-4 h-4 mr-2"/> Abonelik</TabsTrigger>
         </TabsList>
@@ -251,30 +369,106 @@ export function TenantSettings() {
               <CardDescription>Velilere gönderilecek giriş-çıkış bildirimleri ve raporlar için entegrasyonu kurun.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-white border border-green-200 rounded-xl">
+              <div className="flex items-center justify-between p-4 bg-white border border-green-200 rounded-xl mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${whatsappKey ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${isWhatsappVerified ? 'bg-green-500' : 'bg-red-400'}`}></div>
                   <div>
                     <h4 className="font-semibold text-slate-800">Bağlantı Durumu</h4>
-                    <p className="text-sm text-slate-500">{whatsappKey ? 'API Anahtarı Tanımlı (Aktif)' : 'Kurulum Bekleniyor'}</p>
+                    <p className="text-sm text-slate-500">
+                      {isWhatsappVerified ? 'Meta Cloud API (Aktif & Doğrulandı)' : 'Kurulum Bekleniyor'}
+                    </p>
                   </div>
                 </div>
-                {!whatsappKey && <div className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase">Pasif</div>}
-                {whatsappKey && <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase">Bağlı</div>}
+                {isWhatsappVerified ? (
+                  <div className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold uppercase">Bağlı</div>
+                ) : (
+                  <div className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold uppercase">Pasif</div>
+                )}
               </div>
 
-              <div className="space-y-2 pt-2">
-                <Label>WhatsApp API Key (3. Parti Sağlayıcı)</Label>
-                <div className="flex gap-2">
+              <Accordion className="w-full bg-white rounded-xl border border-slate-200 px-4">
+                <AccordionItem value="guide" className="border-b-0">
+                  <AccordionTrigger className="hover:no-underline py-4">
+                    <span className="font-semibold text-slate-700 flex items-center gap-2">
+                      <Info className="w-5 h-5 text-blue-500" />
+                      3 Adımda Meta WhatsApp Kurulum Rehberi
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="text-slate-600 space-y-4 pb-4">
+                    <div className="p-4 bg-slate-50 rounded-lg space-y-3 text-sm">
+                      <p>
+                        <strong>Adım 1:</strong> Meta for Developers hesabınıza giriş yapın ve 'OkulSonrası' adında bir İşletme Uygulaması (Business App) oluşturun.
+                        <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 font-medium ml-2 hover:underline">
+                          Meta Developers <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </p>
+                      <p>
+                        <strong>Adım 2:</strong> Uygulama panelinde sol menüden <em>WhatsApp &gt; API Kurulumu</em> sekmesine gidin. Orada göreceğiniz <strong>Telefon Numarası Kimliği (Phone Number ID)</strong> ve <strong>WhatsApp Business Hesap Kimliği (WABA ID)</strong> değerlerini kopyalayıp aşağıdaki alanlara yapıştırın.
+                      </p>
+                      <p>
+                        <strong>Adım 3:</strong> Meta İşletme Yöneticisi'nde (Business Manager) 'Sistem Kullanıcıları' altından 'Yönetici' yetkili bir kullanıcı açıp <strong>Kalıcı Erişim Belirteci</strong> (Permanent Access Token - whatsapp_business_messaging izinli) oluşturun ve aşağıdaki "Kalıcı Access Token" alanına yapıştırın.
+                        <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 font-medium ml-2 hover:underline">
+                          Business Manager <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </p>
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+
+              <div className="space-y-4 pt-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="font-semibold">Phone Number ID</Label>
+                    <Input 
+                      value={metaPhoneId} 
+                      onChange={(e) => setMetaPhoneId(e.target.value)} 
+                      placeholder="Örn: 104859384729" 
+                      className="h-11 font-mono bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="font-semibold">WABA ID</Label>
+                    <Input 
+                      value={metaWabaId} 
+                      onChange={(e) => setMetaWabaId(e.target.value)} 
+                      placeholder="Örn: 102938475619" 
+                      className="h-11 font-mono bg-white"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="font-semibold">Kalıcı Access Token (Permanent Token)</Label>
                   <Input 
                     type="password" 
-                    value={whatsappKey} 
-                    onChange={(e) => setWhatsappKey(e.target.value)} 
-                    placeholder="WHA-XXXXXXXXXXXXXXXXX" 
-                    className="h-11 font-mono"
+                    value={metaToken} 
+                    onChange={(e) => setMetaToken(e.target.value)} 
+                    placeholder="EAAGm..." 
+                    className="h-11 font-mono bg-white"
                   />
                 </div>
-                <p className="text-xs text-slate-500 mt-1">Sistem tarafından sağlanan API anahtarınızı buraya yapıştırın.</p>
+              </div>
+              
+              <div className="p-4 bg-green-50/50 border border-green-100 rounded-xl mt-6 space-y-3">
+                <Label className="font-semibold text-green-800">Bağlantı Testi (Zorunlu)</Label>
+                <div className="flex gap-3">
+                  <Input 
+                    value={testPhone} 
+                    onChange={(e) => setTestPhone(e.target.value)} 
+                    placeholder="Test mesajı gidecek numara (Örn: 05551234567)" 
+                    className="h-11 font-mono bg-white flex-1"
+                  />
+                  <Button 
+                    variant="outline" 
+                    onClick={handleTestWhatsapp} 
+                    disabled={isTestingWhatsapp}
+                    className="h-11 border-green-300 text-green-700 hover:bg-green-100 px-6 shrink-0"
+                  >
+                    {isTestingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlayCircle className="w-4 h-4 mr-2" />}
+                    Test Et & Doğrula
+                  </Button>
+                </div>
+                <p className="text-xs text-green-700 opacity-80">WhatsApp bağlantısını test etmeden ayarlar kaydedilmez. Bu numaranın doğrulanmış Meta numarası veya test numarası olduğundan emin olun.</p>
               </div>
             </CardContent>
             <CardFooter className="bg-white border-t border-green-100 justify-end p-4 rounded-b-xl">
@@ -343,6 +537,90 @@ export function TenantSettings() {
               </Dialog>
               <Button variant="outline" className="shadow-sm">
                 Kaydet
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+
+        {/* YEDEKLEME VE GOOGLE DRIVE */}
+        <TabsContent value="backup" className="space-y-6">
+          <Card className="shadow-sm border-blue-100 bg-blue-50/20">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <RefreshCw className="w-6 h-6 text-blue-600" />
+                <CardTitle className="text-blue-700">Yedekleme & Google Drive</CardTitle>
+              </div>
+              <CardDescription>
+                Verilerinizin güvenliği için otomatik günlük yedekleme sistemini aktifleştirin.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              
+              <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl p-5 shadow-sm">
+                <h3 className="font-bold mb-2 flex items-center gap-2">
+                  <Info className="w-5 h-5 text-blue-600" />
+                  Nasıl Kurulur?
+                </h3>
+                <ol className="list-decimal list-inside space-y-2 text-sm">
+                  <li>Google Drive'ınızda "OkulSonrasi Yedekler" (veya istediğiniz bir isimle) boş bir klasör oluşturun.</li>
+                  <li>Klasörü paylaşıma açıp, sistem servis e-postamıza tam düzenleme yetkisi verin: <br/><strong className="inline-block mt-1 p-1.5 bg-white border rounded text-xs select-all">okulsonrasi-backup@service-account.com</strong></li>
+                  <li>Oluşturduğunuz klasörün linkini kopyalayıp aşağıdaki alana yapıştırın.</li>
+                </ol>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="font-semibold">Google Drive Klasör ID'si veya Linki</Label>
+                  <Input 
+                    value={driveFolderId} 
+                    onChange={(e) => setDriveFolderId(e.target.value)} 
+                    placeholder="Örn: 1A2b3C4d5E6f7G8h9I0j veya https://drive.google.com/drive/folders/..." 
+                    className="h-11 font-mono"
+                  />
+                  <p className="text-xs text-slate-500">Link yapıştırdığınızda sistem klasör ID'sini otomatik olarak çıkarır.</p>
+                </div>
+                
+                <div className="flex items-center justify-between p-4 bg-white border rounded-xl">
+                  <div>
+                    <h4 className="font-semibold text-slate-800">Otomatik Günlük Yedekleme</h4>
+                    <p className="text-sm text-slate-500">Her gece 03:00'te sistem otomatik olarak tüm kayıtları yedekler.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{autoBackupEnabled ? 'Açık' : 'Kapalı'}</span>
+                    <button 
+                      type="button" 
+                      onClick={() => setAutoBackupEnabled(!autoBackupEnabled)} 
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${autoBackupEnabled ? 'bg-blue-600' : 'bg-slate-300'}`}
+                    >
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoBackupEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
+                  </div>
+                </div>
+
+                {lastBackupAt && (
+                  <div className="text-sm text-slate-600 flex items-center gap-2 mt-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    Son Yedekleme: {new Date(lastBackupAt).toLocaleString('tr-TR')}
+                  </div>
+                )}
+
+              </div>
+            </CardContent>
+            <CardFooter className="bg-white border-t border-blue-100 p-4 rounded-b-xl flex justify-between">
+              <Button 
+                variant="outline" 
+                onClick={handleManualBackup} 
+                className="border-blue-200 text-blue-700 hover:bg-blue-50 shadow-sm"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" /> Şimdi Manuel Yedek Al
+              </Button>
+              <Button 
+                onClick={handleSaveBackup} 
+                disabled={saving} 
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-md"
+              >
+                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Yedekleme Ayarlarını Kaydet
               </Button>
             </CardFooter>
           </Card>

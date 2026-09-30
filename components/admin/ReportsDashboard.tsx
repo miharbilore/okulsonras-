@@ -163,11 +163,20 @@ export function ReportsDashboard() {
                     </div>
                     <div>
                       <p className="font-semibold">{name}</p>
-                      <p className="text-sm text-muted-foreground">Giriş Tipi: {att.check_in_type === "qr" ? "QR Kod" : "PIN"}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {att.status === 'active' ? '🟢 İçeride' : att.status === 'completed' ? '⚪ Çıktı' : '🔴 Otomatik Kapatıldı'}
+                      </p>
                     </div>
                   </div>
-                  <div className="text-sm text-muted-foreground font-mono">
-                    {new Date(att.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                  <div className="text-right">
+                    <div className="text-sm text-slate-900 font-mono">
+                      G: {new Date(att.check_in_at || att.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    {att.check_out_at && (
+                      <div className="text-xs text-slate-500 font-mono mt-1">
+                        Ç: {new Date(att.check_out_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
                   </div>
                 </div>
               )})}
