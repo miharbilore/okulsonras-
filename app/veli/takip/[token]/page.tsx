@@ -90,9 +90,8 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
                 )}
               </div>
             </div>
+            </div>
           </div>
-          </div>
-        </div>
 
         {/* CANLI KAMERA YAYINI */}
         {tenant?.camera_stream_type && tenant.camera_stream_type !== 'none' && tenant.camera_stream_url && (
