@@ -1,3 +1,4 @@
+import { DeviceGuard } from "@/components/DeviceGuard";
 "use client";
 
 import { useState } from "react";
@@ -83,7 +84,7 @@ export default function KioskPage() {
     setIsPinModalOpen(false);
   };
 
-  return (
+  return (<DeviceGuard type="kiosk">
     <div className="min-h-screen bg-background flex items-center justify-center p-8 selection:bg-transparent overflow-hidden relative">
       {/* TEST / EXIT BUTTON */}
       <a href="/" className="absolute top-6 right-6 z-50 flex items-center gap-2 px-4 py-2 bg-white/50 hover:bg-white/90 backdrop-blur text-sm font-bold rounded-full shadow-sm transition-all text-slate-600 hover:text-red-600">
@@ -173,6 +174,4 @@ export default function KioskPage() {
         onClose={() => setIsPinModalOpen(false)} 
         onSubmit={(pin) => handleVerify(pin, 'pin')}
       />
-    </div>
-  );
-}
+    </div></DeviceGuard>);}

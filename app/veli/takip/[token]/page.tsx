@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { Coffee, LogOut, CheckCircle2 } from "lucide-react";
+import { Coffee, LogOut, CheckCircle2, Video } from "lucide-react";
 
 // Server Component (Data fetching on the server)
 export default async function VeliTakipPage({ params }: { params: { token: string } }) {
@@ -51,6 +51,13 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
     .gte('created_at', startOfDay.toISOString())
     .order('created_at', { ascending: false });
 
+  // 4. Kurum Bilgilerini (Kamera Yayını) Getir
+  const { data: tenant } = await supabaseAdmin
+    .from('tenants')
+    .select('camera_stream_type, camera_stream_url')
+    .eq('id', student.tenant_id)
+    .single();
+
   const currentStatus = attendances && attendances.length > 0 ? attendances[0].status : 'unknown';
   const isInside = currentStatus === 'active';
 
@@ -84,7 +91,28 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
               </div>
             </div>
           </div>
+          </div>
         </div>
+
+        {/* CANLI KAMERA YAYINI */}
+        {tenant?.camera_stream_type && tenant.camera_stream_type !== 'none' && tenant.camera_stream_url && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">
+            <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+               <Video className="w-5 h-5 text-blue-500" />
+               Kurum Canlı Yayını
+            </h2>
+            <div className="aspect-video w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center">
+              {tenant.camera_stream_type === 'iframe' ? (
+                <div className="w-full h-full" dangerouslySetInnerHTML={{ __html: tenant.camera_stream_url.startsWith('<') ? tenant.camera_stream_url : `<iframe width="100%" height="100%" src="${tenant.camera_stream_url}" frameborder="0" allowfullscreen></iframe>` }} />
+              ) : (
+                <div className="text-center p-6 text-white">
+                   {/* Normally you'd use a real HLS player here like video.js or hls.js. Since this is just an MVP/Demo, we render a simulated player or plain HTML5 video */}
+                   <video src={tenant.camera_stream_url} controls className="w-full h-full" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* YOKLAMA GEÇMİŞİ (Bugün) */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">

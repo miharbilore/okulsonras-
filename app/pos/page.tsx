@@ -1,3 +1,4 @@
+import { DeviceGuard } from "@/components/DeviceGuard";
 "use client";
 
 import { useState, useEffect } from "react";
@@ -174,7 +175,7 @@ export default function POSPage() {
     }
   };
 
-  return (
+  return (<DeviceGuard type="pos">
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row relative">
       {/* TEST / EXIT BUTTON */}
       <a href="/" className="absolute top-4 right-4 z-50 flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-100 text-sm font-bold rounded-full shadow-sm transition-all text-slate-600 hover:text-red-600 border">
@@ -217,6 +218,4 @@ export default function POSPage() {
           />
         </div>
       </div>
-    </div>
-  );
-}
+    </div></DeviceGuard>);}

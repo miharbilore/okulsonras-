@@ -321,7 +321,7 @@ export function TenantSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="general" className="w-full">
+      <div className="w-full space-y-12">
         <TabsList className="flex flex-wrap md:grid md:grid-cols-5 w-full mb-6 bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="general" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Building2 className="w-4 h-4 mr-2"/> Genel</TabsTrigger>
           <TabsTrigger value="integrations" className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm py-2"><Smartphone className="w-4 h-4 mr-2"/> Entegrasyon</TabsTrigger>
@@ -331,7 +331,7 @@ export function TenantSettings() {
         </TabsList>
 
         {/* GENEL AYARLAR */}
-        <TabsContent value="general" className="space-y-6">
+        <section id="general" className="space-y-6 scroll-mt-20">
           <Card className="shadow-sm border-slate-200">
             <CardHeader>
               <CardTitle>Profil Bilgileri</CardTitle>
@@ -356,10 +356,10 @@ export function TenantSettings() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </section>
 
         {/* ENTEGRASYONLAR */}
-        <TabsContent value="integrations" className="space-y-6">
+        <section id="integrations" className="space-y-6 scroll-mt-20">
           <Card className="shadow-sm border-green-100 bg-green-50/20">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -540,10 +540,10 @@ export function TenantSettings() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </section>
 
         {/* YEDEKLEME VE GOOGLE DRIVE */}
-        <TabsContent value="backup" className="space-y-6">
+        <section id="backup" className="space-y-6 scroll-mt-20">
           <Card className="shadow-sm border-blue-100 bg-blue-50/20">
             <CardHeader>
               <div className="flex items-center gap-2">
@@ -624,10 +624,10 @@ export function TenantSettings() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </section>
 
         {/* GÜVENLİK VE CİHAZ YÖNETİMİ */}
-        <TabsContent value="security" className="space-y-6">
+        <section id="security" className="space-y-6 scroll-mt-20">
           <Card className="shadow-sm border-slate-200 border-l-4 border-l-blue-500">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -698,10 +698,10 @@ export function TenantSettings() {
               </div>
             </DialogContent>
           </Dialog>
-        </TabsContent>
+        </section>
 
         {/* ABONELİK (FATURALANDIRMA) */}
-        <TabsContent value="billing" className="space-y-6">
+        <section id="billing" className="space-y-6 scroll-mt-20">
           <Card className="shadow-sm border-amber-200 bg-amber-50/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-amber-800">
@@ -766,9 +766,9 @@ export function TenantSettings() {
               </Button>
             </CardFooter>
           </Card>
-        </TabsContent>
+        </section>
 
-      </Tabs>
+      </div>
     </div>
   );
 }
@@ -791,3 +791,4 @@ function SettingsIcon(props: any) {
     </svg>
   );
 }
+

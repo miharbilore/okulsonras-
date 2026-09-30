@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, UserPlus, CreditCard, RefreshCw, MessageCircle, Send, Loader2, Info, Printer } from "lucide-react";
+import { Search, UserPlus, CreditCard, RefreshCw, MessageCircle, Send, Loader2, Info, Printer, Edit2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { StudentCard } from "./StudentCard";
 import { createClient } from "@/lib/supabase";
@@ -34,6 +34,12 @@ export function StudentManagement() {
     qrCodeId: "",
     pinCode: ""
   });
+
+  // Edit Student State
+  const [editingStudent, setEditingStudent] = useState<any>(null);
+  
+  // Delete Student State
+  const [deletingStudent, setDeletingStudent] = useState<any>(null);
 
   const supabase = createClient();
 
@@ -123,6 +129,55 @@ export function StudentManagement() {
     setIsAddModalOpen(false);
     toast.success("Öğrenci başarıyla veritabanına eklendi.");
     setNewStudent({ fullName: "", parentName: "", parentPhone: "", weeklyLimit: 100, qrCodeId: "", pinCode: "" });
+  };
+
+  const handleUpdateStudent = async () => {
+    if (!editingStudent) return;
+    
+    const { error } = await supabase.from('students')
+      .update({
+        full_name: editingStudent.full_name,
+        parent_name: editingStudent.parent_name,
+        parent_phone: editingStudent.parent_phone,
+        weekly_limit: editingStudent.weekly_limit,
+      })
+      .eq('id', editingStudent.id);
+
+    if (error) {
+      toast.error("Güncelleme başarısız: " + error.message);
+      return;
+    }
+    
+    setStudents(prev => prev.map(s => s.id === editingStudent.id ? { ...s, ...editingStudent } : s));
+    setEditingStudent(null);
+    toast.success("Öğrenci bilgileri güncellendi.");
+  };
+
+  const handleDeleteStudent = async () => {
+    if (!deletingStudent) return;
+    
+    // We do a hard delete, but if there are foreign keys, it might fail.
+    // If it fails, we should handle it or do soft delete. But standard Supabase allows cascade if set.
+    const { error } = await supabase.from('students').delete().eq('id', deletingStudent.id);
+    
+    if (error) {
+      toast.error("Öğrenci silinemedi (önce ilişkili kayıtları silmelisiniz veya is_active=false yapmalısınız).");
+      return;
+    }
+    
+    setStudents(prev => prev.filter(s => s.id !== deletingStudent.id));
+    setDeletingStudent(null);
+    toast.success("Öğrenci başarıyla silindi.");
+  };
+
+  const handleUpdateLimit = async (id: string, newLimit: number) => {
+    const { error } = await supabase.from('students').update({ weekly_limit: newLimit }).eq('id', id);
+    if (error) {
+      toast.error("Limit güncellenemedi.");
+      return;
+    }
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, weekly_limit: newLimit } : s));
+    toast.success("Limit başarıyla güncellendi.");
   };
 
   const handleSendMessage = async (text: string) => {
@@ -408,3 +463,7 @@ export function StudentManagement() {
     </>
   );
 }
+
+
+
+
