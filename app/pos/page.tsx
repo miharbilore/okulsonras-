@@ -124,11 +124,11 @@ export default function POSPage() {
       // Limit check
       if (paymentType === 'credit') {
         if ((selectedStudent.weeklySpending + totalAmount) > selectedStudent.weeklyLimit) {
-          throw new Error("Haftalýk Harcama Limiti Aþýldý!");
+          throw new Error("HaftalÄ±k Harcama Limiti AÅŸÄ±ldÄ±!");
         }
       }
 
-      // Cihaz API anahtarýný local storage'dan alýyoruz (DeviceGuard kaydediyordu)
+      // Cihaz API anahtarÄ±
       const apiKey = localStorage.getItem('device_api_key_pos') || '';
 
       const res = await fetch('/api/pos/checkout', {
@@ -146,23 +146,23 @@ export default function POSPage() {
 
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "Ýþlem kaydedilemedi");
+        throw new Error(data.error || "Ä°ÅŸlem kaydedilemedi");
       }
 
-      toast.success("Harcama Baþarýyla Kaydedildi!", {
-        description: \\ hesabýna ?\ eklendi.\,
+      toast.success("Harcama BaÅŸarÄ±yla Kaydedildi!", {
+        description: selectedStudent.name + " hesabÄ±na â‚º" + totalAmount.toFixed(2) + " eklendi.",
         duration: 4000,
       });
 
       // Update local state to reflect spending immediately
       setStudents(prev => prev.map(s => s.id === selectedStudent.id ? { ...s, weeklySpending: s.weeklySpending + totalAmount } : s));
 
-      // Sepeti ve öðrenciyi temizle
+      // Sepeti ve Ã¶ÄŸrenciyi temizle
       setCartItems([]);
       setSelectedStudent(null);
       
     } catch (error: any) {
-      toast.error("Ýþlem Baþarýsýz", {
+      toast.error("Ä°ÅŸlem BaÅŸarÄ±sÄ±z", {
         description: error.message,
         duration: 5000,
       });
