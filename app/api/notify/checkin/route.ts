@@ -128,11 +128,7 @@ export async function POST(request: Request) {
     // --- BİLDİRİM GÖNDERİMİ ---
     const phone = student.parent_phone;
     if (phone) {
-      const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
-      const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
-      const isWhatsAppEnabled = GREENAPI_INSTANCE_ID && GREENAPI_TOKEN && GREENAPI_INSTANCE_ID !== 'mock_instance' && GREENAPI_TOKEN !== 'mock_token';
-
-      if (isWhatsAppEnabled) {
+      
         const time = new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Istanbul' });
         // Eğer token migration'ı henüz çalıştırılmadıysa fallback (eski yapı veya 404 durumu)
         const trackingUrl = student.tracking_token 
@@ -148,7 +144,6 @@ export async function POST(request: Request) {
         
         const { enqueueWhatsAppMessage } = await import('@/lib/whatsapp');
         await enqueueWhatsAppMessage(student.tenant_id, phone, message);
-      }
     }
 
     // Cache'i Anında Temizle
@@ -161,3 +156,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
+

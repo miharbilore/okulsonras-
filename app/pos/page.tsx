@@ -1,5 +1,5 @@
-import { DeviceGuard } from "@/components/DeviceGuard";
 "use client";
+import { DeviceGuard } from "@/components/DeviceGuard";
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -219,3 +219,5 @@ export default function POSPage() {
         </div>
       </div>
     </div></DeviceGuard>);}
+
+

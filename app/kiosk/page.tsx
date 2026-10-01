@@ -1,5 +1,5 @@
-import { DeviceGuard } from "@/components/DeviceGuard";
 "use client";
+import { DeviceGuard } from "@/components/DeviceGuard";
 
 import { useState } from "react";
 import { KioskScanner } from "@/components/kiosk/KioskScanner";
@@ -175,3 +175,5 @@ export default function KioskPage() {
         onSubmit={(pin) => handleVerify(pin, 'pin')}
       />
     </div></DeviceGuard>);}
+
+

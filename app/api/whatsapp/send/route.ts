@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { enqueueWhatsAppMessage } from '@/lib/whatsapp';
+import { getCurrentTenant } from '@/app/actions/tenant';
 
 export async function POST(request: Request) {
   try {
@@ -8,49 +10,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: 'Telefon numarası ve mesaj zorunludur.' }, { status: 400 });
     }
 
-    const GREENAPI_INSTANCE_ID = process.env.GREEN_API_INSTANCE_ID || "";
-    const GREENAPI_TOKEN = process.env.GREEN_API_TOKEN || "";
-    const GREENAPI_BASE = `https://api.green-api.com/waInstance${GREENAPI_INSTANCE_ID}`;
-
-    if (!GREENAPI_INSTANCE_ID || !GREENAPI_TOKEN || GREENAPI_INSTANCE_ID === 'mock_instance' || GREENAPI_TOKEN === 'mock_token') {
-      return NextResponse.json({ 
-        success: false, 
-        error: 'WhatsApp henüz yapılandırılmamış. İşletme Ayarları > WhatsApp bölümünden QR kod ile cihazınızı eşleştirin.' 
-      });
+    const tenantInfo = await getCurrentTenant();
+    if (!tenantInfo || !tenantInfo.tenantId) {
+      return NextResponse.json({ success: false, error: 'Oturum yetkisi yok veya işletme bulunamadı.' }, { status: 401 });
     }
 
-    // Phone formatting
-    let formattedPhone = phone.replace(/\D/g, "");
-    if (formattedPhone.startsWith("0")) {
-      formattedPhone = "9" + formattedPhone;
-    } else if (!formattedPhone.startsWith("90")) {
-      formattedPhone = "90" + formattedPhone;
-    }
+    await enqueueWhatsAppMessage(tenantInfo.tenantId, phone, message);
 
-    const chatId = `${formattedPhone}@c.us`;
-
-    const response = await fetch(`${GREENAPI_BASE}/sendMessage/${GREENAPI_TOKEN}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        chatId,
-        message,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error("WhatsApp API Error:", data);
-      return NextResponse.json({ success: false, error: 'WhatsApp API hatası' }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, message: 'Mesaj kuyruğa eklendi.' });
 
   } catch (error: any) {
-    console.error("Error sending WhatsApp message:", error);
+    console.error("Error queueing WhatsApp message:", error);
     return NextResponse.json({ success: false, error: error.message || 'Sunucu hatası' }, { status: 500 });
   }
 }
