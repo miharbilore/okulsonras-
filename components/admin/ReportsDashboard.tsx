@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentTenant } from "@/app/actions/tenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { MessageSquareShare, TrendingUp, Users, Info, Loader2 } from "lucide-react";
@@ -18,7 +19,7 @@ export function ReportsDashboard() {
     async function loadStats() {
       const supabase = createClient();
       
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       let activeTenantId = tenantInfo?.tenantId || null;
 

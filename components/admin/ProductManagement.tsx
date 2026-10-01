@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getCurrentTenant } from "@/app/actions/tenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +36,7 @@ export function ProductManagement() {
 
   const fetchProducts = async () => {
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) {
         toast.error("İşletme kimliği bulunamadı! Lütfen sisteme tekrar giriş yapın.");
@@ -67,7 +68,7 @@ export function ProductManagement() {
     }
 
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) {
         toast.error("İşletme kimliği bulunamadı!");

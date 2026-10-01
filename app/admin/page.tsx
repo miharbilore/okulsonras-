@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getCurrentTenant, clearImpersonation } from "@/app/actions/tenant";
 import { StudentManagement } from "@/components/admin/StudentManagement";
 import { ProductManagement } from "@/components/admin/ProductManagement";
 import { ReportsDashboard } from "@/components/admin/ReportsDashboard";
@@ -26,7 +27,7 @@ export default function AdminPage() {
   useEffect(() => {
     const initTenant = async () => {
       try {
-        const { getCurrentTenant } = await import("@/app/actions/tenant");
+        
         const tenantInfo = await getCurrentTenant();
         
         if (tenantInfo) {
@@ -123,7 +124,7 @@ export default function AdminPage() {
           {isImpersonating ? (
             <button 
               onClick={async () => {
-                const { clearImpersonation } = await import("@/app/actions/tenant");
+                
                 await clearImpersonation();
                 window.location.href = "/super-admin";
               }}
@@ -136,7 +137,7 @@ export default function AdminPage() {
             <button 
               onClick={async () => {
                 const { createClient } = await import("@/lib/supabase");
-                const { clearImpersonation } = await import("@/app/actions/tenant");
+                
                 const supabase = createClient();
                 await supabase.auth.signOut();
                 await clearImpersonation();

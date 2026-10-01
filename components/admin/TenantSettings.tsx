@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { getCurrentTenant } from "@/app/actions/tenant";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,7 +50,7 @@ export function TenantSettings() {
 
   const fetchTenantDetails = async () => {
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) {
         toast.error("İşletme kimliği bulunamadı! Lütfen sisteme tekrar giriş yapın.");
@@ -92,7 +93,7 @@ export function TenantSettings() {
   const handleSaveBackup = async () => {
     setSaving(true);
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) throw new Error("Tenant ID eksik");
 
@@ -170,7 +171,7 @@ export function TenantSettings() {
   const handleSaveGeneral = async () => {
     setSaving(true);
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) throw new Error("Tenant ID eksik");
 
@@ -191,7 +192,7 @@ export function TenantSettings() {
   const handleSaveIntegration = async () => {
     setSaving(true);
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       if (!tenantInfo) throw new Error("Tenant ID eksik");
 
@@ -258,7 +259,7 @@ export function TenantSettings() {
     setSaving(true);
     toast.loading("Ödeme sayfasına yönlendiriliyorsunuz...", { id: "checkout" });
     try {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       
       const res = await fetch("/api/checkout", {

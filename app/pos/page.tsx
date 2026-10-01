@@ -1,5 +1,6 @@
 "use client";
 import { DeviceGuard } from "@/components/DeviceGuard";
+import { getCurrentTenant } from "@/app/actions/tenant";
 
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -20,7 +21,7 @@ export default function POSPage() {
 
   useEffect(() => {
     async function loadData() {
-      const { getCurrentTenant } = await import("@/app/actions/tenant");
+      
       const tenantInfo = await getCurrentTenant();
       let currentTenantId = tenantInfo?.tenantId || null;
       
