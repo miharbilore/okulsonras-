@@ -114,59 +114,55 @@ export default function POSPage() {
     setCartItems(prev => prev.filter(item => item.id !== id));
   };
 
-  const handleCheckout = async (paymentType: 'credit' | 'cash') => {
+    const handleCheckout = async (paymentType: 'credit' | 'cash') => {
     if (!selectedStudent || cartItems.length === 0) return;
 
     setIsCheckingOut(true);
     try {
       const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
       
-      // Limit Kontrolü sadece Veresiye (credit) işlemlerinde yapılır
+      // Limit check
       if (paymentType === 'credit') {
         if ((selectedStudent.weeklySpending + totalAmount) > selectedStudent.weeklyLimit) {
-          throw new Error("Öğrencinin haftalık limiti bu işlem için yetersiz!");
+          throw new Error("Haftal�k Harcama Limiti A��ld�!");
         }
       }
 
-      // --- GERÇEK SUPABASE ENTEGRASYONU ---
-      if (tenantId) {
-        const { error: trxError } = await supabase.from('transactions').insert({
-          tenant_id: tenantId,
-          student_id: selectedStudent.id,
+      // Cihaz API anahtar�n� local storage'dan al�yoruz (DeviceGuard kaydediyordu)
+      const apiKey = localStorage.getItem('device_api_key_pos') || '';
+
+      const res = await fetch('/api/pos/checkout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey
+        },
+        body: JSON.stringify({
+          studentId: selectedStudent.id,
           items: cartItems,
-          total_amount: totalAmount,
-          type: paymentType === 'cash' ? 'cash_purchase' : 'credit_purchase'
-        });
-        if (trxError) throw new Error("İşlem kaydedilemedi: " + trxError.message);
+          totalAmount: totalAmount
+        })
+      });
 
-        // Veresiye satış yapıldıysa veliye akşam bildirim gitmesi için kuyruğa at
-        if (paymentType === 'credit') {
-          const { error: notifError } = await supabase.from('daily_notifications').insert({
-             tenant_id: tenantId,
-             student_id: selectedStudent.id,
-             type: 'daily_spending',
-             payload: { total_amount: totalAmount, items: cartItems }
-          });
-          if (notifError) console.error("Bildirim kuyruğuna eklenemedi:", notifError);
-        }
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "��lem kaydedilemedi");
       }
-      
-      // Simüle Edilmiş Bekleme Süresi
-      await new Promise(resolve => setTimeout(resolve, 800));
 
-      toast.success(paymentType === 'cash' ? "Peşin Satış Tamamlandı!" : "Veresiye Satış Tamamlandı!", {
-        description: paymentType === 'cash' 
-          ? `₺${totalAmount.toFixed(2)} peşin olarak tahsil edildi.` 
-          : `${selectedStudent.name} hesabına ₺${totalAmount.toFixed(2)} veresiye yazıldı.`,
+      toast.success("Harcama Ba�ar�yla Kaydedildi!", {
+        description: \\ hesab�na ?\ eklendi.\,
         duration: 4000,
       });
 
-      // Sepeti ve öğrenciyi temizle
+      // Update local state to reflect spending immediately
+      setStudents(prev => prev.map(s => s.id === selectedStudent.id ? { ...s, weeklySpending: s.weeklySpending + totalAmount } : s));
+
+      // Sepeti ve ��renciyi temizle
       setCartItems([]);
       setSelectedStudent(null);
       
     } catch (error: any) {
-      toast.error("Satış Başarısız", {
+      toast.error("��lem Ba�ar�s�z", {
         description: error.message,
         duration: 5000,
       });
@@ -219,5 +215,6 @@ export default function POSPage() {
         </div>
       </div>
     </div></DeviceGuard>);}
+
 
 

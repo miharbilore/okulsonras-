@@ -14,7 +14,7 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
   // 1. Öğrenciyi Token'a göre bul
   const { data: student, error: studentError } = await supabaseAdmin
     .from('students')
-    .select('id, full_name, tenant_id, parent_phone')
+    .select('id, full_name, tenant_id, parent_phone, weekly_limit')
     .eq('tracking_token', token)
     .single();
 
@@ -33,7 +33,8 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
   }
 
   // 2. Bugünkü Yoklama (Giriş/Çıkış) Kayıtlarını Getir
-  const startOfDay = new Date();
+  const now = new Date();
+  const startOfDay = new Date(now);
   startOfDay.setHours(0, 0, 0, 0);
   
   const { data: attendances } = await supabaseAdmin
@@ -43,13 +44,23 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
     .gte('created_at', startOfDay.toISOString())
     .order('created_at', { ascending: false });
 
-  // 3. Bugünkü Kantin (Transaction) Hareketlerini Getir
-  const { data: transactions } = await supabaseAdmin
+  // 3. Bu Haftaki Tüm Kantin Harcamaları (Limit İçin)
+  const startOfWeek = new Date(now);
+  const day = now.getDay() || 7;
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(now.getDate() - day + 1);
+
+  const { data: weeklyTransactions } = await supabaseAdmin
     .from('transactions')
-    .select('*')
+    .select('total_amount, created_at, items, id')
     .eq('student_id', student.id)
-    .gte('created_at', startOfDay.toISOString())
+    .gte('created_at', startOfWeek.toISOString())
     .order('created_at', { ascending: false });
+
+  const spentThisWeek = weeklyTransactions?.reduce((acc, tx) => acc + Number(tx.total_amount), 0) || 0;
+  const weeklyLimit = Number(student.weekly_limit) || 0;
+  const remainingLimit = Math.max(0, weeklyLimit - spentThisWeek);
+  const progressPercent = weeklyLimit > 0 ? Math.min(100, (spentThisWeek / weeklyLimit) * 100) : 0;
 
   // 4. Kurum Bilgilerini (Kamera Yayını) Getir
   const { data: tenant } = await supabaseAdmin
@@ -90,8 +101,22 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
                 )}
               </div>
             </div>
+            
+            <div className="w-full mt-4 pt-4 border-t border-slate-100">
+              <div className="flex justify-between text-sm font-semibold mb-2">
+                <span className="text-slate-500">Haftalık Harcama</span>
+                <span className="text-slate-800">₺{spentThisWeek.toFixed(2)} / ₺{weeklyLimit.toFixed(2)}</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div 
+                  className={`h-full rounded-full ${progressPercent > 80 ? 'bg-red-500' : progressPercent > 50 ? 'bg-amber-500' : 'bg-blue-500'}`} 
+                  style={{ width: `${progressPercent}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-slate-500 text-right mt-1">Kalan Limit: ₺{remainingLimit.toFixed(2)}</p>
             </div>
           </div>
+        </div>
 
         {/* CANLI KAMERA YAYINI */}
         {tenant?.camera_stream_type && tenant.camera_stream_type !== 'none' && tenant.camera_stream_url && (
@@ -156,31 +181,35 @@ export default async function VeliTakipPage({ params }: { params: { token: strin
           </div>
         </div>
 
-        {/* KANTİN GEÇMİŞİ (Bugün) */}
+        {/* KANTİN GEÇMİŞİ (Bu Hafta) */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100">
           <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
             <Coffee className="w-5 h-5 text-amber-500" />
-            Bugünkü Kantin Harcamaları
+            Bu Haftaki Kantin Harcamaları
           </h2>
           
           <div className="space-y-3">
-            {(!transactions || transactions.length === 0) ? (
-              <p className="text-slate-500 text-sm text-center py-4">Bugün kantin harcaması bulunmuyor.</p>
+            {(!weeklyTransactions || weeklyTransactions.length === 0) ? (
+              <p className="text-slate-500 text-sm text-center py-4">Bu hafta kantin harcaması bulunmuyor.</p>
             ) : (
-              transactions.map((tx) => (
-                <div key={tx.id} className="flex justify-between items-center p-4 rounded-2xl border border-slate-100">
-                  <div>
-                    <p className="font-semibold text-slate-800">{tx.description || "Kantin Alışverişi"}</p>
-                    <p className="text-xs text-slate-500 font-mono mt-1">
-                      {new Date(tx.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
+              weeklyTransactions.map((tx: any) => {
+                const itemsDesc = Array.isArray(tx.items) && tx.items.length > 0 
+                  ? tx.items.map((i:any) => `${i.qty}x ${i.name}`).join(", ")
+                  : "Kantin Alışverişi";
+                return (
+                  <div key={tx.id} className="flex justify-between items-center p-4 rounded-2xl border border-slate-100">
+                    <div>
+                      <p className="font-semibold text-slate-800">{itemsDesc}</p>
+                      <p className="text-xs text-slate-500 font-mono mt-1">
+                        {new Date(tx.created_at).toLocaleDateString('tr-TR')} {new Date(tx.created_at).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-lg text-slate-900">₺{Number(tx.total_amount).toFixed(2)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg text-slate-900">₺{Number(tx.total_amount).toFixed(2)}</p>
-                    <p className="text-xs text-amber-600 font-medium">{tx.payment_method === 'credit' ? 'Veresiye (Hesaba Yazıldı)' : 'Peşin Ödendi'}</p>
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
