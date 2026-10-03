@@ -12,6 +12,7 @@ jobs:
     steps:
       - name: Hit Drive Backup Endpoint
         run: |
-          curl -X POST "https://${{ secrets.PROJECT_DOMAIN }}/api/backup/drive" \
+          curl -X POST "$\{\{ secrets.APP_URL \}\}/api/backup/drive" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -v
+
