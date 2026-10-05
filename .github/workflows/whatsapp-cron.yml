@@ -12,7 +12,6 @@ jobs:
     steps:
       - name: Hit Process WhatsApp Queue Endpoint
         run: |
-          curl -X GET "$\{\{ secrets.APP_URL \}\}/api/cron/process-whatsapp-queue" \
+          curl -X GET "${{ secrets.APP_URL }}/api/cron/process-whatsapp-queue" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -v
-
