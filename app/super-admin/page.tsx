@@ -104,7 +104,7 @@ export default function SuperAdminPage() {
     }
     try {
       const isTrial = newTenant.plan === "deneme";
-      let trialEndsAt = null;
+      let trialEndsAt: string | null = null;
       if (isTrial) {
         const d = new Date();
         d.setDate(d.getDate() + 14);
@@ -116,7 +116,7 @@ export default function SuperAdminPage() {
         slug: newTenant.slug,
         plan_type: newTenant.plan,
         status: "active",
-        trial_ends_at: trialEndsAt
+        trial_ends_at: trialEndsAt || null
       }).select().single();
 
       if (error) throw error;
@@ -345,11 +345,10 @@ export default function SuperAdminPage() {
           </div>
 
           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-            <DialogTrigger asChild>
-              <Button className="h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 transition-all w-full sm:w-auto">
+            <DialogTrigger>
+              <div className="h-12 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-md shadow-indigo-200 transition-all w-full sm:w-auto flex items-center justify-center">
                 <Plus className="w-5 h-5 mr-2" /> Yeni İşletme
-              </Button>
-            </DialogTrigger>
+              </div></DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                 <DialogTitle className="text-xl font-bold">Yeni Müşteri Ekle</DialogTitle>
@@ -375,7 +374,7 @@ export default function SuperAdminPage() {
                   <Label>Abonelik Planı</Label>
                   <Select
                     value={newTenant.plan}
-                    onValueChange={(val) => setNewTenant({ ...newTenant, plan: val })}
+                    onValueChange={(val) => setNewTenant({ ...newTenant, plan: val || "deneme" })}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Plan Seçin" />
@@ -419,3 +418,5 @@ export default function SuperAdminPage() {
     </div>
   );
 }
+
+
