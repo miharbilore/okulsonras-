@@ -100,23 +100,23 @@ function LoginContent() {
   return (
     <div className="min-h-screen flex">
       {/* Sol Panel - Bilgi */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative items-center justify-center p-12">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-slate-100 via-white to-slate-50 border-r relative items-center justify-center p-12">
         <div className="absolute inset-0 opacity-15">
           <div className="absolute top-[20%] left-[10%] w-72 h-72 bg-primary rounded-full blur-[100px]" />
           <div className="absolute bottom-[15%] right-[15%] w-64 h-64 bg-blue-500 rounded-full blur-[80px]" />
         </div>
         <div className="relative z-10 max-w-lg">
           <Link href="/" className="inline-flex items-center gap-3 mb-12 group">
-            <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform">
+            <div className="w-14 h-14 bg-primary rounded-2xl flex items-center justify-center text-slate-900 shadow-lg shadow-primary/30 group-hover:scale-105 transition-transform">
               <QrCode className="w-7 h-7" />
             </div>
-            <span className="text-3xl font-extrabold text-white tracking-tight">OkulSonrası</span>
+            <span className="text-3xl font-extrabold text-slate-900 tracking-tight">OkulSonrası</span>
           </Link>
-          <h1 className="text-4xl font-extrabold text-white leading-tight mb-6">
+          <h1 className="text-4xl font-extrabold text-slate-900 leading-tight mb-6">
             İşletmenizi<br />
             <span className="text-primary">tek panelden</span> yönetin.
           </h1>
-          <p className="text-slate-400 text-lg leading-relaxed mb-10">
+          <p className="text-slate-600 text-lg leading-relaxed mb-10">
             Öğrenci giriş-çıkışı, kantin POS, veli WhatsApp bildirimleri ve detaylı raporlar — hepsi tek ekranda.
           </p>
           <div className="space-y-4">
@@ -129,7 +129,7 @@ function LoginContent() {
                 <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
                   <ShieldCheck className="w-3.5 h-3.5 text-primary" />
                 </div>
-                <span className="text-slate-300 font-medium">{item}</span>
+                <span className="text-slate-700 font-medium">{item}</span>
               </div>
             ))}
           </div>
@@ -142,7 +142,7 @@ function LoginContent() {
           {/* Mobilde Logo */}
           <div className="text-center mb-8 lg:hidden">
             <Link href="/" className="inline-flex items-center gap-3 mb-4 group">
-              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-primary/30">
+              <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center text-slate-900 shadow-lg shadow-primary/30">
                 <QrCode className="w-6 h-6" />
               </div>
               <span className="text-2xl font-extrabold text-slate-900 tracking-tight">OkulSonrası</span>
@@ -177,7 +177,7 @@ function LoginContent() {
                 <span className="w-full border-t border-slate-200"></span>
               </div>
               <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-slate-50 px-4 text-slate-400 font-bold tracking-wider">veya e-posta ile</span>
+                <span className="bg-slate-50 px-4 text-slate-600 font-bold tracking-wider">veya e-posta ile</span>
               </div>
             </div>
 
@@ -186,7 +186,7 @@ function LoginContent() {
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-semibold text-slate-700">E-posta Adresi</Label>
                 <div className="relative">
-                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                   <Input
                     id="email"
                     type="email"
@@ -207,7 +207,7 @@ function LoginContent() {
                   </Link>
                 </div>
                 <div className="relative">
-                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -220,7 +220,7 @@ function LoginContent() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-600 hover:text-slate-600 transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -238,7 +238,7 @@ function LoginContent() {
             </form>
 
             {/* Alt Bilgi */}
-            <div className="flex items-center justify-center gap-2 text-sm text-slate-400">
+            <div className="flex items-center justify-center gap-2 text-sm text-slate-600">
               <ShieldCheck className="w-4 h-4 text-green-500" />
               <span>256-bit SSL ile güvende</span>
             </div>
@@ -265,3 +265,4 @@ export default function LoginPage() {
     </Suspense>
   );
 }
+
