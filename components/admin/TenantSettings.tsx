@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Building2, Save, Smartphone, CheckCircle2, ShieldCheck, Crown, KeyRound, Copy, Camera, Info, Loader2, CreditCard, Lock, RefreshCw, AlertCircle, PlayCircle, Trash2, Plus } from "lucide-react";
+import { Building2, Save, Smartphone, CheckCircle2, ShieldCheck, Crown, KeyRound, Copy, Camera, Info, Loader2, CreditCard, Lock, RefreshCw, AlertCircle, PlayCircle, Trash2, Plus, Settings2 } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import { getApiKeys, generateApiKey, revokeApiKey } from "@/app/actions/api-keys";
 
@@ -32,6 +32,8 @@ export function TenantSettings() {
   const [testPhone, setTestPhone] = useState("");
   const [isTestingWhatsapp, setIsTestingWhatsapp] = useState(false);
   const [isWhatsappVerified, setIsWhatsappVerified] = useState(false);
+  const [isConnectingWhatsapp, setIsConnectingWhatsapp] = useState(false);
+  const metaAppId = process.env.NEXT_PUBLIC_META_APP_ID || "";
 
   const [driveFolderId, setDriveFolderId] = useState("");
   const [autoBackupEnabled, setAutoBackupEnabled] = useState(true);
@@ -250,6 +252,92 @@ export function TenantSettings() {
     }
   };
 
+  // =======================================================
+  // WHATSAPP EMBEDDED SIGNUP (Tek Tıkla Bağlantı)
+  // =======================================================
+  const handleEmbeddedSignup = async () => {
+    if (!metaAppId) {
+      toast.error("Meta App ID yapılandırılmamış. Lütfen yöneticinize başvurun.");
+      return;
+    }
+
+    setIsConnectingWhatsapp(true);
+    toast.loading("Facebook bağlantı penceresi açılıyor...", { id: "wa-connect" });
+
+    try {
+      // Load the Facebook SDK if not already loaded
+      if (!(window as any).FB) {
+        await new Promise<void>((resolve, reject) => {
+          const script = document.createElement("script");
+          script.src = "https://connect.facebook.net/tr_TR/sdk.js";
+          script.async = true;
+          script.defer = true;
+          script.crossOrigin = "anonymous";
+          script.onload = () => {
+            (window as any).FB.init({
+              appId: metaAppId,
+              cookie: true,
+              xfbml: true,
+              version: "v20.0",
+            });
+            resolve();
+          };
+          script.onerror = () => reject(new Error("Facebook SDK yüklenemedi."));
+          document.body.appendChild(script);
+        });
+      }
+
+      // Launch Embedded Signup
+      (window as any).FB.login(
+        async (response: any) => {
+          if (response.authResponse) {
+            const userToken = response.authResponse.accessToken;
+
+            toast.loading("WhatsApp bilgileri alınıyor...", { id: "wa-connect" });
+
+            // Send to our backend for token exchange and credential extraction
+            const res = await fetch("/api/whatsapp/oauth", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ accessToken: userToken }),
+            });
+            const data = await res.json();
+
+            if (!res.ok || !data.success) {
+              throw new Error(data.error || "Bağlantı başarısız oldu.");
+            }
+
+            // Update local state with the returned credentials
+            setMetaWabaId(data.wabaId || "");
+            setMetaPhoneId(data.phoneNumberId || "");
+            setIsWhatsappVerified(true);
+
+            toast.success("WhatsApp başarıyla bağlandı! 🎉", { id: "wa-connect" });
+
+            // Refresh tenant data
+            await fetchTenantDetails();
+          } else {
+            toast.error("Bağlantı iptal edildi veya yetki verilmedi.", { id: "wa-connect" });
+          }
+          setIsConnectingWhatsapp(false);
+        },
+        {
+          config_id: process.env.NEXT_PUBLIC_META_CONFIG_ID || "",
+          response_type: "code",
+          override_default_response_type: true,
+          extras: {
+            setup: {},
+            featureType: "",
+            sessionInfoVersion: "3",
+          },
+        }
+      );
+    } catch (err: any) {
+      toast.error("Hata: " + err.message, { id: "wa-connect" });
+      setIsConnectingWhatsapp(false);
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} panoya kopyalandı.`);
@@ -367,12 +455,13 @@ export function TenantSettings() {
                 <Smartphone className="w-6 h-6 text-green-600" />
                 <CardTitle className="text-green-700">WhatsApp Bildirim Altyapısı</CardTitle>
               </div>
-              <CardDescription>Velilere gönderilecek giriş-çıkış bildirimleri ve raporlar için entegrasyonu kurun.</CardDescription>
+              <CardDescription>Velilere gönderilecek giriş-çıkış bildirimleri için WhatsApp hesabınızı bağlayın.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Bağlantı Durumu */}
               <div className="flex items-center justify-between p-4 bg-white border border-green-200 rounded-xl mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${isWhatsappVerified ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                  <div className={`w-3 h-3 rounded-full ${isWhatsappVerified ? 'bg-green-500 animate-pulse' : 'bg-red-400'}`}></div>
                   <div>
                     <h4 className="font-semibold text-slate-800">Bağlantı Durumu</h4>
                     <p className="text-sm text-slate-500">
@@ -387,97 +476,142 @@ export function TenantSettings() {
                 )}
               </div>
 
-              <Accordion className="w-full bg-white rounded-xl border border-slate-200 px-4">
-                <AccordionItem value="guide" className="border-b-0">
+              {/* Embedded Signup Butonu veya Bağlantı Durumu */}
+              {!isWhatsappVerified ? (
+                <div className="flex flex-col items-center gap-4 py-6 px-4 bg-white border-2 border-dashed border-green-300 rounded-2xl">
+                  <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center">
+                    <Smartphone className="w-8 h-8 text-green-600" />
+                  </div>
+                  <div className="text-center max-w-md">
+                    <h3 className="text-lg font-bold text-slate-900 mb-2">WhatsApp Hesabınızı Bağlayın</h3>
+                    <p className="text-sm text-slate-600 leading-relaxed">
+                      Aşağıdaki butona basarak Facebook hesabınız üzerinden işletmenizin WhatsApp numarasını tek tıkla sisteme bağlayabilirsiniz. 
+                      Hiçbir Token veya ID kopyalamanıza gerek yok!
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleEmbeddedSignup}
+                    disabled={isConnectingWhatsapp}
+                    className="h-14 px-8 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] text-white font-bold text-base shadow-lg shadow-blue-200 transition-all hover:-translate-y-0.5"
+                  >
+                    {isConnectingWhatsapp ? (
+                      <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+                    ) : (
+                      <svg className="w-5 h-5 mr-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.953 11.953 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.387 0-4.595-.817-6.343-2.188l-.154-.127-3.2 1.073 1.073-3.2-.127-.154A9.96 9.96 0 012 12C2 6.486 6.486 2 12 2s10 4.486 10 10-4.486 10-10 10z"/></svg>
+                    )}
+                    {isConnectingWhatsapp ? "Bağlanıyor..." : "Meta ile WhatsApp Bağla"}
+                  </Button>
+                  <p className="text-xs text-slate-500 text-center max-w-sm">
+                    Facebook oturum açma penceresi açılacak, işletmenizi ve WhatsApp numaranızı seçmeniz yeterlidir.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Bağlı Hesap Bilgileri */}
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                      <span className="font-bold text-green-800">Hesap Bağlandı</span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                      <div className="bg-white/80 rounded-lg p-3 border border-green-100">
+                        <span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">Phone Number ID</span>
+                        <span className="font-mono text-slate-800 text-sm">{metaPhoneId || "—"}</span>
+                      </div>
+                      <div className="bg-white/80 rounded-lg p-3 border border-green-100">
+                        <span className="text-slate-500 block text-xs font-semibold uppercase tracking-wider mb-1">WABA ID</span>
+                        <span className="font-mono text-slate-800 text-sm">{metaWabaId || "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bağlantıyı Yenile */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-slate-500">Farklı bir numara bağlamak ister misiniz?</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEmbeddedSignup}
+                      disabled={isConnectingWhatsapp}
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" /> Yeniden Bağla
+                    </Button>
+                  </div>
+
+                  {/* Test Bölümü */}
+                  <div className="p-4 bg-green-50/50 border border-green-100 rounded-xl space-y-3">
+                    <Label className="font-semibold text-green-800">Bağlantı Testi</Label>
+                    <div className="flex gap-3">
+                      <Input 
+                        value={testPhone} 
+                        onChange={(e) => setTestPhone(e.target.value)} 
+                        placeholder="Test mesajı gidecek numara (Örn: 05551234567)" 
+                        className="h-11 font-mono bg-white flex-1"
+                      />
+                      <Button 
+                        variant="outline" 
+                        onClick={handleTestWhatsapp} 
+                        disabled={isTestingWhatsapp}
+                        className="h-11 border-green-300 text-green-700 hover:bg-green-100 px-6 shrink-0"
+                      >
+                        {isTestingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlayCircle className="w-4 h-4 mr-2" />}
+                        Test Et
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Manuel Ayar (Gelişmiş) - Accordion */}
+              <Accordion className="w-full bg-white rounded-xl border border-slate-200 px-4 mt-4">
+                <AccordionItem value="manual" className="border-b-0">
                   <AccordionTrigger className="hover:no-underline py-4">
                     <span className="font-semibold text-slate-700 flex items-center gap-2">
-                      <Info className="w-5 h-5 text-blue-500" />
-                      3 Adımda Meta WhatsApp Kurulum Rehberi
+                      <Settings2 className="w-5 h-5 text-slate-400" />
+                      Gelişmiş Ayarlar (Manuel Bağlantı)
                     </span>
                   </AccordionTrigger>
                   <AccordionContent className="text-slate-600 space-y-4 pb-4">
-                    <div className="p-4 bg-slate-50 rounded-lg space-y-3 text-sm">
-                      <p>
-                        <strong>Adım 1:</strong> Meta for Developers hesabınıza giriş yapın ve 'OkulSonrası' adında bir İşletme Uygulaması (Business App) oluşturun.
-                        <a href="https://developers.facebook.com/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 font-medium ml-2 hover:underline">
-                          Meta Developers <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </p>
-                      <p>
-                        <strong>Adım 2:</strong> Uygulama panelinde sol menüden <em>WhatsApp &gt; API Kurulumu</em> sekmesine gidin. Orada göreceğiniz <strong>Telefon Numarası Kimliği (Phone Number ID)</strong> ve <strong>WhatsApp Business Hesap Kimliği (WABA ID)</strong> değerlerini kopyalayıp aşağıdaki alanlara yapıştırın.
-                      </p>
-                      <p>
-                        <strong>Adım 3:</strong> Meta İşletme Yöneticisi'nde (Business Manager) 'Sistem Kullanıcıları' altından 'Yönetici' yetkili bir kullanıcı açıp <strong>Kalıcı Erişim Belirteci</strong> (Permanent Access Token - whatsapp_business_messaging izinli) oluşturun ve aşağıdaki "Kalıcı Access Token" alanına yapıştırın.
-                        <a href="https://business.facebook.com/settings/system-users" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-600 font-medium ml-2 hover:underline">
-                          Business Manager <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </p>
+                    <p className="text-sm text-slate-500">Meta Developers panelinden aldığınız bilgileri buraya elle girebilirsiniz. Otomatik bağlantı kullanıyorsanız bu alanlar zaten doldurulmuş olacaktır.</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="font-semibold">Phone Number ID</Label>
+                        <Input 
+                          value={metaPhoneId} 
+                          onChange={(e) => setMetaPhoneId(e.target.value)} 
+                          placeholder="Örn: 104859384729" 
+                          className="h-11 font-mono bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="font-semibold">WABA ID</Label>
+                        <Input 
+                          value={metaWabaId} 
+                          onChange={(e) => setMetaWabaId(e.target.value)} 
+                          placeholder="Örn: 102938475619" 
+                          className="h-11 font-mono bg-white"
+                        />
+                      </div>
                     </div>
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Access Token</Label>
+                      <Input 
+                        type="password" 
+                        value={metaToken} 
+                        onChange={(e) => setMetaToken(e.target.value)} 
+                        placeholder="EAAGm..." 
+                        className="h-11 font-mono bg-white"
+                      />
+                    </div>
+                    <Button onClick={handleSaveIntegration} disabled={saving} variant="outline" className="border-slate-300">
+                      {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                      Manuel Ayarları Kaydet
+                    </Button>
                   </AccordionContent>
                 </AccordionItem>
               </Accordion>
-
-              <div className="space-y-4 pt-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-semibold">Phone Number ID</Label>
-                    <Input 
-                      value={metaPhoneId} 
-                      onChange={(e) => setMetaPhoneId(e.target.value)} 
-                      placeholder="Örn: 104859384729" 
-                      className="h-11 font-mono bg-white"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-semibold">WABA ID</Label>
-                    <Input 
-                      value={metaWabaId} 
-                      onChange={(e) => setMetaWabaId(e.target.value)} 
-                      placeholder="Örn: 102938475619" 
-                      className="h-11 font-mono bg-white"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="font-semibold">Kalıcı Access Token (Permanent Token)</Label>
-                  <Input 
-                    type="password" 
-                    value={metaToken} 
-                    onChange={(e) => setMetaToken(e.target.value)} 
-                    placeholder="EAAGm..." 
-                    className="h-11 font-mono bg-white"
-                  />
-                </div>
-              </div>
-              
-              <div className="p-4 bg-green-50/50 border border-green-100 rounded-xl mt-6 space-y-3">
-                <Label className="font-semibold text-green-800">Bağlantı Testi (Zorunlu)</Label>
-                <div className="flex gap-3">
-                  <Input 
-                    value={testPhone} 
-                    onChange={(e) => setTestPhone(e.target.value)} 
-                    placeholder="Test mesajı gidecek numara (Örn: 05551234567)" 
-                    className="h-11 font-mono bg-white flex-1"
-                  />
-                  <Button 
-                    variant="outline" 
-                    onClick={handleTestWhatsapp} 
-                    disabled={isTestingWhatsapp}
-                    className="h-11 border-green-300 text-green-700 hover:bg-green-100 px-6 shrink-0"
-                  >
-                    {isTestingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <PlayCircle className="w-4 h-4 mr-2" />}
-                    Test Et & Doğrula
-                  </Button>
-                </div>
-                <p className="text-xs text-green-700 opacity-80">WhatsApp bağlantısını test etmeden ayarlar kaydedilmez. Bu numaranın doğrulanmış Meta numarası veya test numarası olduğundan emin olun.</p>
-              </div>
             </CardContent>
-            <CardFooter className="bg-white border-t border-green-100 justify-end p-4 rounded-b-xl">
-              <Button onClick={handleSaveIntegration} disabled={saving} className="bg-green-600 hover:bg-green-700 text-white shadow-md">
-                {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Bağlantıyı Kaydet
-              </Button>
-            </CardFooter>
           </Card>
 
           <Card className="shadow-sm border-slate-200">
