@@ -16,3 +16,22 @@ Before writing, generating, or modifying any code, evaluate the task using the d
 3. **Native first:** Never install a third-party library or npm package if a standard Web/JS API (HTML5 inputs, native fetch, Intl, native CSS) solves the problem.
 4. **Minimal diff:** Produce the absolute minimum line changes needed. Do not introduce abstractions, generic handlers, or refactors unless strictly requested.
 5. **Safety invariant:** Never remove security checks, sanitization, validation, or error handling to save lines.
+
+---
+
+# OkulSonrası.com — Core Architecture & Domain Rules
+
+## 1. Multi-Tenant Architecture & Database Security
+- **SaaS Isolation:** Every table in the database must include `tenant_id`.
+- **Row Level Security (RLS):** RLS must always be active on all tenant-facing tables. A tenant must never read or modify another tenant's students, balances, transactions, or attendances.
+- **Admin/Super-Admin Separation:** Super admin routes (`/super-admin`) are strictly guarded via JWT `app_metadata.role === 'super_admin'`.
+
+## 2. Kiosk & Entrance Screen Standards
+- **Display Optimization:** The Kiosk screen (`/kiosk`) must be 100% full-screen responsive for 1080p touch monitors and tablets.
+- **Auto-Reset Lifecycle:** Upon QR scan or PIN entry, display the success state for 3 seconds, then automatically reset via React state. Never trigger page reloads (F5).
+- **Scanner Hygiene:** Stop and clear `html5-qrcode` streams properly to prevent memory leaks and camera lockups.
+
+## 3. Security, Privacy & Error Handling
+- **Parent Tracking Privacy:** Never expose predictable UUIDs in parent tracking URLs. Always use secure, random tracking tokens (`/veli/takip/[token]`).
+- **User Feedback:** Use `try-catch` blocks and user-friendly toast notifications (`sonner`) across all API and database interactions.
+- **Payment & WhatsApp Deduplication:** Use `lib/whatsapp.ts` for messaging and maintain PayTR as primary with Iyzico as fallback. Do not add bloat libraries.
