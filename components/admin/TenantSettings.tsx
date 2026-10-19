@@ -347,15 +347,16 @@ export function TenantSettings() {
     setSaving(true);
     toast.loading("Ödeme sayfasına yönlendiriliyorsunuz...", { id: "checkout" });
     try {
-      
       const tenantInfo = await getCurrentTenant();
+      const { data: { user } } = await supabase.auth.getUser();
       
-      const res = await fetch("/api/checkout", {
+      // Birincil Tercih: PayTR Ödeme Geçidi
+      const res = await fetch("/api/checkout/paytr", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan: "professional",
-          email: "admin@okulsonrasi.com",
+          email: user?.email || "admin@okulsonrasi.com",
           name: name || "İşletme Adı",
           tenantId: tenantInfo?.tenantId
         })

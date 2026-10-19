@@ -7,7 +7,6 @@ import { ProductManagement } from "@/components/admin/ProductManagement";
 import { ReportsDashboard } from "@/components/admin/ReportsDashboard";
 import { TenantSettings } from "@/components/admin/TenantSettings";
 import { LayoutDashboard, Users, Coffee, FileBarChart, Settings, LogOut, Menu, X, Lock, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
 const SIDEBAR_ITEMS = [
@@ -166,49 +165,38 @@ export default function AdminPage() {
       </div>
 
       {/* MOBILE MENU */}
-      <AnimatePresence>
-        {isMobileMenuOpen && (
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="md:hidden fixed top-16 left-0 w-full bg-white border-b z-40 p-4 space-y-2 shadow-lg print:hidden"
-          >
-            {SIDEBAR_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold ${
-                    isActive ? "bg-primary text-primary-foreground" : "text-slate-600"
-                  }`}
-                >
-                  <Icon className="w-5 h-5" />
-                  {item.label}
-                </button>
-              );
-            })}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isMobileMenuOpen && (
+        <div 
+          className="md:hidden fixed top-16 left-0 w-full bg-white border-b z-40 p-4 space-y-2 shadow-lg print:hidden transition-all duration-200 ease-out animate-in slide-in-from-top-2 fade-in"
+        >
+          {SIDEBAR_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => { setActiveTab(item.id); setIsMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-bold ${
+                  isActive ? "bg-primary text-primary-foreground" : "text-slate-600"
+                }`}
+              >
+                <Icon className="w-5 h-5" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 w-full min-w-0 flex flex-col md:pl-0 pt-16 md:pt-0 max-w-[1200px] mx-auto min-h-screen print:min-h-0 print:pt-0 print:max-w-none">
         <div className="flex-1 p-3 sm:p-6 lg:p-10 w-full">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="bg-white p-4 sm:p-6 md:p-8 sm:rounded-[2rem] rounded-xl border shadow-sm print:hidden w-full overflow-hidden"
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
+          <div
+            key={activeTab}
+            className="bg-white p-4 sm:p-6 md:p-8 sm:rounded-[2rem] rounded-xl border shadow-sm print:hidden w-full overflow-hidden transition-all duration-200 ease-out animate-in fade-in"
+          >
+            {renderContent()}
+          </div>
         </div>
       </main>
     </div>
