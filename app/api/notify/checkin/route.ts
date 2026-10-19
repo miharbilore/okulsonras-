@@ -146,8 +146,10 @@ export async function POST(request: Request) {
         await enqueueWhatsAppMessage(student.tenant_id, phone, message);
     }
 
-    // Cache'i Anında Temizle
-    revalidatePath(`/veli/${studentId}`, 'page');
+    // Cache'i Anında Temizle (Güvenli Veli Takip Rotası)
+    if (student.tracking_token) {
+      revalidatePath(`/veli/takip/${student.tracking_token}`, 'page');
+    }
 
     return NextResponse.json({ success: true, action, studentName: student.full_name });
 

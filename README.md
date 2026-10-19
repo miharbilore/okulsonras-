@@ -8,7 +8,7 @@ OkulSonrası, etüt merkezleri, kurslar ve okul sonrası eğitim kurumları içi
 - **Güvenli Kimlik Doğrulama:** Supabase Auth entegrasyonu ile E-posta/Şifre ve **Google ile Giriş** seçenekleri.
 - **Otomatik Onboarding:** Yeni üye olan işletmeler için şık ve yönlendirici "İşletmeni Kur" (Onboarding) akışı.
 - **Kapsamlı Yönetim Paneli (`/admin`):** Kurum yöneticilerinin öğrencileri, harcamaları ve yoklamaları takip edebileceği merkezi panel.
-- **Veli Bilgilendirme Ekranı (`/veli/[studentId]`):** Velilerin çocuklarının giriş-çıkış saatlerini (QR / PIN) ve harcama geçmişlerini anlık olarak takip edebildiği şeffaf arayüz.
+- **Veli Bilgilendirme Ekranı (`/veli/takip/[token]`):** Velilerin çocuklarının giriş-çıkış saatlerini (QR / PIN) ve harcama geçmişlerini güvenli ve tahmin edilemez bağlantılarla anlık olarak takip edebildiği şeffaf arayüz.
 - **Gelişmiş Satış ve POS (`/pos`):** Kantin veya kırtasiye satışları için hızlı Point of Sale (POS) sistemi.
 - **Kiosk Modu (`/kiosk`):** Öğrencilerin kuruma giriş-çıkış yaparken QR kod veya PIN kullandıkları hızlı işlem ekranı.
 - **Super Admin Paneli (`/super-admin`):** Tüm işletmelerin (tenant) sistem yöneticisi tarafından yönetilebildiği üst düzey kontrol paneli.
